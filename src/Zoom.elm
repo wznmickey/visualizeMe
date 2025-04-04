@@ -116,11 +116,10 @@ view : Model -> Html Msg
 view model =
     div
         [ style "position" "absolute"
-        , style "top" "50%"
-        , style "left" "50%"
-        , style "width" "700px"
-        , style "height" "700px"
-        , style "transform" "translate(-50%, -50%)"
+        , style "top" "calc(50vh - 40vh)"
+        , style "left" "calc(50vw - 40vh)"
+        , style "width" "80vh"
+        , style "height" "80vh"
         ]
         [ C.chart
             [ CA.height 300
