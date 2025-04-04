@@ -41,7 +41,7 @@
 
 == Motivation
 
-In today’s fast-paced technological world, advancements in hardware and artificial intelligence (AI) are occurring at breakneck speed. This creates a dilemma for consumers and professionals who seek to stay up-to-date with the best performing systems without breaking the bank. While tools for benchmarking hardware, particularly CPUs and GPUs, have become increasingly sophisticated, the problem lies in the fact that top-tier performance is not necessarily the most cost-effective solution for everyone.
+In today’s fast-paced technological world, advancements in hardware and artificial intelligence (AI) are occurring at breakneck speed. This creates a dilemma for consumers and professionals who seek to stay up-to-date with the best performing systems without breaking the bank. While tools for benchmarking hardware, particularly *CPUs* and *GPUs*, have become increasingly sophisticated, the problem lies in the fact that top-tier performance is not necessarily the most cost-effective solution for everyone.
 
 When selecting hardware, it’s important to recognize that performance should not be the only consideration. Several other factors play a crucial role in choosing the right setup for a given application.
 #pagebreak()
@@ -50,13 +50,13 @@ When selecting hardware, it’s important to recognize that performance should n
 - Price: The most powerful hardware often comes with a premium price tag, but for many users, the best performance is not required for their daily tasks. For example, a developer or gamer may need just enough GPU power to run programs efficiently, but not necessarily the highest-end models available.
 #pagebreak()
 - Specific Use Case: Different use cases demand different hardware characteristics.
-  - Single-core performance might be essential for applications that rely heavily on sequential processing (e.g., certain older games or single-threaded applications).
+  - Single-core performance might be essential for applications that rely heavily on *sequential* processing (e.g., certain older games or single-threaded applications).
 
-  - Multi-core performance is critical for tasks like rendering, scientific computing, and modern gaming where parallel processing is leveraged.
+  - Multi-core performance is critical for tasks like *rendering*, *scientific computing*, and modern gaming where *parallel* processing is leveraged.
 
-  - For GPUs, some users prioritize high encoding and decoding ability for video production, while others might prefer high memory bandwidth for tasks such as gaming, machine learning, or 3D rendering.
+  - For GPUs, some users prioritize high *encoding* and *decoding* ability for video production, while others might prefer high *memory bandwidth* for tasks such as gaming, machine learning, or 3D rendering.
 #pagebreak()
-In addition to hardware considerations, there are also other contexts in which performance must be evaluated. For instance, in the realm of Large Language Models (LLMs) and other AI models, the user’s needs must be balanced across several dimensions. As LLMs continue to evolve, model size, accuracy, and processing speed are important factors to weigh. Some users may prioritize faster inference times, while others may be more concerned with the accuracy of the results. Additionally, some may be restricted by computational resources, thus requiring smaller models that can still offer competitive performance.
+In addition to hardware considerations, there are also other contexts in which performance must be evaluated. For instance, in the realm of Large Language Models (LLMs) and other AI models, the user’s needs must be balanced across several dimensions. As LLMs continue to evolve, *model size*, *performance*, and processing *speed* are important factors to weigh. Some users may prioritize faster inference times, while others may be more concerned with the accuracy of the results. Additionally, some may be restricted by computational resources, thus requiring smaller models that can still offer competitive performance.
 
 == Current Situation
 Hard to filter the desired parameters.
