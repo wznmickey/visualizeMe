@@ -9160,14 +9160,31 @@ var $elm$core$List$isEmpty = function (xs) {
 		return false;
 	}
 };
+var $elm$core$Basics$neq = _Utils_notEqual;
 var $elm$core$List$sortBy = _List_sortBy;
 var $author$project$Zoom$getPareto = function (points) {
-	var sorted = A2(
+	var sortedx = A2(
 		$elm$core$List$sortBy,
 		function ($) {
 			return $.x;
 		},
 		points);
+	var paretoy = A3(
+		$elm$core$List$foldl,
+		F2(
+			function (p, acc) {
+				return ($elm$core$List$isEmpty(acc) || function () {
+					var _v1 = $elm$core$List$head(acc);
+					if (_v1.$ === 'Just') {
+						var headPoint = _v1.a;
+						return _Utils_cmp(headPoint.y, p.y) < 0;
+					} else {
+						return true;
+					}
+				}()) ? A2($elm$core$List$cons, p, acc) : acc;
+			}),
+		_List_Nil,
+		sortedx);
 	var pareto = A3(
 		$elm$core$List$foldl,
 		F2(
@@ -9176,14 +9193,14 @@ var $author$project$Zoom$getPareto = function (points) {
 					var _v0 = $elm$core$List$head(acc);
 					if (_v0.$ === 'Just') {
 						var headPoint = _v0.a;
-						return _Utils_cmp(headPoint.y, p.y) < 0;
+						return !_Utils_eq(headPoint.x, p.x);
 					} else {
 						return true;
 					}
 				}()) ? A2($elm$core$List$cons, p, acc) : acc;
 			}),
 		_List_Nil,
-		sorted);
+		paretoy);
 	return $elm$core$List$reverse(pareto);
 };
 var $terezka$elm_charts$Chart$Attributes$height = function (v) {
@@ -10061,7 +10078,6 @@ var $terezka$elm_charts$Internal$Interpolation$monotoneCurve = F4(
 		var dx = (point1.x - point0.x) / 3;
 		return A6($terezka$elm_charts$Internal$Commands$CubicBeziers, point0.x + dx, point0.y + (dx * tangent0), point1.x - dx, point1.y - (dx * tangent1), point1.x, point1.y);
 	});
-var $elm$core$Basics$neq = _Utils_notEqual;
 var $terezka$elm_charts$Internal$Interpolation$slope2 = F3(
 	function (point0, point1, t) {
 		var h = point1.x - point0.x;

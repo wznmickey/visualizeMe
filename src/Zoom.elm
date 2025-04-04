@@ -28,10 +28,10 @@ type alias Point =
 getPareto : List Point -> List Point
 getPareto points =
     let
-        sorted =
+        sortedx =
             List.sortBy .x points
 
-        pareto =
+        paretoy =
             List.foldl
                 (\p acc ->
                     if
@@ -50,7 +50,29 @@ getPareto points =
                         acc
                 )
                 []
-                sorted
+                sortedx
+
+        -- Remove duplicates
+        pareto =
+            List.foldl
+                (\p acc ->
+                    if
+                        List.isEmpty acc
+                            || (case List.head acc of
+                                    Just headPoint ->
+                                        headPoint.x /= p.x
+
+                                    Nothing ->
+                                        True
+                               )
+                    then
+                        p :: acc
+
+                    else
+                        acc
+                )
+                []
+                paretoy
     in
     List.reverse pareto
 
