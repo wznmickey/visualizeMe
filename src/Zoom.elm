@@ -5,17 +5,61 @@ import Chart.Attributes as CA
 import Chart.Events as CE
 import Chart.Item as CI
 import Chart.Svg as CS
+import Csv.Decode as Decode exposing (Decoder, column, float, into, pipeline, string)
+import File exposing (File)
+import File.Select as Select
 import Html as H exposing (Html, div)
 import Html.Attributes as HA exposing (style)
 import Html.Events as HE
 import Svg as S
 import Svg.Attributes as SA
+import Task
+
+
+type alias Point =
+    { x : Float
+    , y : Float
+    , s : Float
+    , w : String
+    }
+
+getPareto : List Point -> List Point
+getPareto points =
+    let
+        sorted =
+            List.sortBy .x points
+
+        pareto =
+            List.foldl
+                (\p acc ->
+                    if List.isEmpty acc || 
+                       case List.head acc of
+                           Just headPoint -> headPoint.y < p.y
+                           Nothing -> True then
+                        p :: acc
+
+                    else
+                        acc
+                )
+                []
+                sorted
+    in
+    List.reverse pareto
+
+decoder : Decoder Point
+decoder =
+    into Point
+        |> pipeline (column 1 float)
+        |> pipeline (column 2 float)
+        |> pipeline (column 3 float)
+        |> pipeline (column 0 string)
 
 
 type alias Model =
     { center : CS.Point
     , dragging : Dragging
     , percentage : Float
+    , data : List Point
     }
 
 
@@ -30,6 +74,13 @@ init _ =
     ( { center = { x = 0, y = 0 }
       , dragging = None
       , percentage = 100
+      , data =
+            [ { x = 65, y = 45, s = 77, w = "AMD Athlon 64 3500+" }
+            , { x = 14, y = 35, s = 192, w = "AMD Athlon 200GE" }
+            , { x = 22, y = 80, s = 160, w = "Intel Xeon E5-2603 v2" }
+            , { x = 45, y = 125, s = 258, w = "AMD Phenom II X4 980 BE" }
+            , { x = 22, y = 95, s = 160, w = "\tIntel Xeon E5-2470 v2" }
+            ]
       }
     , Cmd.none
     )
@@ -43,6 +94,9 @@ type Msg
     | OnZoomIn
     | OnZoomOut
     | OnZoomReset
+    | FileRequested
+    | FileUpload File
+    | FileLoad String
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -104,6 +158,29 @@ update msg model =
         OnZoomReset ->
             ( { model | percentage = 100, center = { x = 0, y = 0 } }, Cmd.none )
 
+        FileRequested ->
+            ( model
+            , Select.file [ "text/csv" ] FileUpload
+            )
+
+        FileUpload file ->
+            ( model, Task.perform FileLoad (File.toString file) )
+
+        FileLoad str ->
+            ( { model
+                | data =
+                    case
+                        Decode.decodeCsv Decode.NoFieldNames decoder str
+                    of
+                        Ok points ->
+                            points
+
+                        Err err ->
+                            []
+              }
+            , Cmd.none
+            )
+
 
 updateCenter : CS.Point -> CS.Point -> CS.Point -> CS.Point
 updateCenter center prevOffset offset =
@@ -160,12 +237,11 @@ view model =
                 [ C.scatter .y [ CA.opacity 0.2, CA.borderWidth 1 ]
                     |> C.variation (\_ d -> [ CA.size (d.s * model.percentage / 100 / 10), CA.hideOverflow ])
                 ]
-                [ { x = 65, y = 45, s = 77, w = "AMD Athlon 64 3500+" }
-                , { x = 14, y = 35, s = 192, w = "AMD Athlon 200GE" }
-                , { x = 22, y = 80, s = 160, w = "Intel Xeon E5-2603 v2" }
-                , { x = 45, y = 125, s = 258, w = "AMD Phenom II X4 980 BE" }
-                , { x = 22, y = 95, s = 160, w = "\tIntel Xeon E5-2470 v2" }
-                ]
+                model.data
+            , C.series .x
+            [ C.interpolated .y [ CA.monotone ] []
+            ]
+                (getPareto model.data)
             , C.eachDot <|
                 \p dot ->
                     [ C.label
@@ -173,11 +249,13 @@ view model =
                         [ S.text (CI.getData dot).w ]
                         (CI.getCenter p dot)
                     ]
-            , C.withPlane <|
-                \p ->
-                    [ C.line [ CA.color CA.darkGray, CA.dashed [ 6, 6 ], CA.y1 (CA.middle p.y) ]
-                    , C.line [ CA.color CA.darkGray, CA.dashed [ 6, 6 ], CA.x1 (CA.middle p.x) ]
-                    ]
+            
+
+            -- , C.withPlane <|
+            --     \p ->
+            --         [ C.line [ CA.color CA.darkGray, CA.dashed [ 6, 6 ], CA.y1 (CA.middle p.y) ]
+            --         , C.line [ CA.color CA.darkGray, CA.dashed [ 6, 6 ], CA.x1 (CA.middle p.x) ]
+            --         ]
             , C.htmlAt .max
                 .max
                 0
@@ -198,7 +276,8 @@ view model =
                     [ H.text "-" ]
                 , H.button
                     [ HE.onClick OnZoomReset ]
-                    [ H.text "⨯" ]
+                    [ H.text "Reset" ]
+                , H.button [ HE.onClick FileRequested ] [ H.text "Load CSV" ]
                 ]
             ]
         ]
