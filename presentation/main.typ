@@ -125,7 +125,7 @@ To-do:
 
 = Appendix
 
-== project Source Code
+== Project Source Code
 `Main.elm`
 #{
   set text(size: 8pt)
@@ -140,7 +140,7 @@ To-do:
 }
 
 
-== slides Source Code
+== Slides Source Code
 The typst code generating the slides.
 `main.typ`
 #{
