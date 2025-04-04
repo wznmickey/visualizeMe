@@ -124,6 +124,8 @@ To-do:
   Any people who have many options to choose from
 
   https://wznmickey.github.io/visualizeMe/
+  
+  Zining Wang
 ]
 
 = Appendix
