@@ -90,6 +90,12 @@ https://wznmickey.github.io/visualizeMe/
 7. Upload the data and visualize it.
 8. Change the x-axis, y-axis text.
 
+== Challenge
+
+1. Lack of documentation and packages for elm-lang. e.g. csv parsing,key binding
+2. Lack of contributor. I work alone in this project.
+3. Lack of experience in web frontend development. I am not familiar with tools like CSS in organizing different elements in a page.
+
 
 == Current bugs & Undeveloped Part
 
@@ -97,9 +103,11 @@ There are some bugs in the current version:
 - The text would not disappear when it is out of the screen.
 - The size of each point could not resize according to the relative size of the data.
 - Text may of x-axis and y-axis may be overlapped by the data point features.
+- The layer of the element to capture wheel is lower than that of the element to show the data which causes the wheel event not captured in the center.
 
 To-do:
 - Filter different data columns in the csv file.
+- When the mouse is moved onto each point, the text of the point should be shown.
 - Better design of the layout of the page.
 
 #focus-slide[
