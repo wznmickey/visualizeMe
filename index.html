@@ -5405,6 +5405,7 @@ var $author$project$Zoom$init = function (_v0) {
 				]),
 			dragging: $author$project$Zoom$None,
 			percentage: 100,
+			showPareto: false,
 			showSize: true,
 			showText: true,
 			textX: 'Process Size in nanometers',
@@ -6693,6 +6694,12 @@ var $author$project$Zoom$update = F2(
 						model,
 						{showText: !model.showText}),
 					$elm$core$Platform$Cmd$none);
+			case 'ToggleShowPareto':
+				return _Utils_Tuple2(
+					_Utils_update(
+						model,
+						{showPareto: !model.showPareto}),
+					$elm$core$Platform$Cmd$none);
 			case 'OnWheelEvent':
 				var delta = msg.a;
 				return _Utils_Tuple2(
@@ -6733,6 +6740,7 @@ var $author$project$Zoom$OnMouseUp = F2(
 var $author$project$Zoom$OnZoomIn = {$: 'OnZoomIn'};
 var $author$project$Zoom$OnZoomOut = {$: 'OnZoomOut'};
 var $author$project$Zoom$OnZoomReset = {$: 'OnZoomReset'};
+var $author$project$Zoom$ToggleShowPareto = {$: 'ToggleShowPareto'};
 var $author$project$Zoom$ToggleShowSize = {$: 'ToggleShowSize'};
 var $author$project$Zoom$ToggleShowText = {$: 'ToggleShowText'};
 var $author$project$Zoom$UpdateTextX = function (a) {
@@ -14003,6 +14011,22 @@ var $author$project$Zoom$view = function (model) {
 											]),
 										_List_Nil),
 										$elm$html$Html$text(' Show text')
+									])),
+								A2(
+								$elm$html$Html$label,
+								_List_Nil,
+								_List_fromArray(
+									[
+										A2(
+										$elm$html$Html$input,
+										_List_fromArray(
+											[
+												$elm$html$Html$Attributes$type_('checkbox'),
+												$elm$html$Html$Attributes$checked(model.showPareto),
+												$elm$html$Html$Events$onClick($author$project$Zoom$ToggleShowPareto)
+											]),
+										_List_Nil),
+										$elm$html$Html$text(' Show pareto line')
 									]))
 							])),
 						A2(
@@ -14186,7 +14210,7 @@ var $author$project$Zoom$view = function (model) {
 												])))
 									]),
 								model.data),
-								A3(
+								model.showPareto ? A3(
 								$terezka$elm_charts$Chart$series,
 								function ($) {
 									return $.x;
@@ -14202,7 +14226,23 @@ var $author$project$Zoom$view = function (model) {
 											[$terezka$elm_charts$Chart$Attributes$monotone]),
 										_List_Nil)
 									]),
-								$author$project$Zoom$getPareto(model.data)),
+								$author$project$Zoom$getPareto(model.data)) : A3(
+								$terezka$elm_charts$Chart$series,
+								function ($) {
+									return $.x;
+								},
+								_List_fromArray(
+									[
+										A3(
+										$terezka$elm_charts$Chart$interpolated,
+										function ($) {
+											return $.y;
+										},
+										_List_fromArray(
+											[$terezka$elm_charts$Chart$Attributes$monotone]),
+										_List_Nil)
+									]),
+								_List_Nil),
 								model.showText ? $terezka$elm_charts$Chart$eachDot(
 								F2(
 									function (p, dot) {

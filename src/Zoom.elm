@@ -71,6 +71,7 @@ type alias Model =
     , data : List Point
     , showSize : Bool
     , showText : Bool
+    , showPareto : Bool
     , textX : String
     , textY : String
     }
@@ -96,6 +97,7 @@ init _ =
             ]
       , showSize = True
       , showText = True
+      , showPareto = False
       , textX = "Process Size in nanometers"
       , textY = "Thermal Design Power in Watts"
       }
@@ -116,6 +118,7 @@ type Msg
     | FileLoad String
     | ToggleShowSize
     | ToggleShowText
+    | ToggleShowPareto
     | OnWheelEvent Float
     | UpdateTextX String
     | UpdateTextY String
@@ -209,6 +212,9 @@ update msg model =
         ToggleShowText ->
             ( { model | showText = not model.showText }, Cmd.none )
 
+        ToggleShowPareto ->
+            ( { model | showPareto = not model.showPareto }, Cmd.none )
+
         OnWheelEvent delta ->
             ( { model
                 | percentage =
@@ -248,6 +254,10 @@ view model =
                 , H.label []
                     [ H.input [ HA.type_ "checkbox", HA.checked model.showText, HE.onClick ToggleShowText ] []
                     , H.text " Show text"
+                    ]
+                , H.label []
+                    [ H.input [ HA.type_ "checkbox", HA.checked model.showPareto, HE.onClick ToggleShowPareto ] []
+                    , H.text " Show pareto line"
                     ]
                 ]
             , div []
@@ -324,10 +334,17 @@ view model =
                             )
                     ]
                     model.data
-                , C.series .x
-                    [ C.interpolated .y [ CA.monotone ] []
-                    ]
-                    (getPareto model.data)
+                , if model.showPareto then
+                    C.series .x
+                        [ C.interpolated .y [ CA.monotone ] []
+                        ]
+                        (getPareto model.data)
+
+                  else
+                    C.series .x
+                        [ C.interpolated .y [ CA.monotone ] []
+                        ]
+                        []
                 , if model.showText then
                     C.eachDot <|
                         \p dot ->
