@@ -111,6 +111,7 @@ To-do:
 - Filter different data columns in the csv file.
 - When the mouse is moved onto each point, the text of the point should be shown.
 - Better design of the layout of the page.
+- Use a url to import the latest online data.
 
 #focus-slide[
 
