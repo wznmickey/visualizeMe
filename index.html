@@ -4387,6 +4387,184 @@ function _Browser_load(url)
 
 
 
+// DECODER
+
+var _File_decoder = _Json_decodePrim(function(value) {
+	// NOTE: checks if `File` exists in case this is run on node
+	return (typeof File !== 'undefined' && value instanceof File)
+		? $elm$core$Result$Ok(value)
+		: _Json_expecting('a FILE', value);
+});
+
+
+// METADATA
+
+function _File_name(file) { return file.name; }
+function _File_mime(file) { return file.type; }
+function _File_size(file) { return file.size; }
+
+function _File_lastModified(file)
+{
+	return $elm$time$Time$millisToPosix(file.lastModified);
+}
+
+
+// DOWNLOAD
+
+var _File_downloadNode;
+
+function _File_getDownloadNode()
+{
+	return _File_downloadNode || (_File_downloadNode = document.createElement('a'));
+}
+
+var _File_download = F3(function(name, mime, content)
+{
+	return _Scheduler_binding(function(callback)
+	{
+		var blob = new Blob([content], {type: mime});
+
+		// for IE10+
+		if (navigator.msSaveOrOpenBlob)
+		{
+			navigator.msSaveOrOpenBlob(blob, name);
+			return;
+		}
+
+		// for HTML5
+		var node = _File_getDownloadNode();
+		var objectUrl = URL.createObjectURL(blob);
+		node.href = objectUrl;
+		node.download = name;
+		_File_click(node);
+		URL.revokeObjectURL(objectUrl);
+	});
+});
+
+function _File_downloadUrl(href)
+{
+	return _Scheduler_binding(function(callback)
+	{
+		var node = _File_getDownloadNode();
+		node.href = href;
+		node.download = '';
+		node.origin === location.origin || (node.target = '_blank');
+		_File_click(node);
+	});
+}
+
+
+// IE COMPATIBILITY
+
+function _File_makeBytesSafeForInternetExplorer(bytes)
+{
+	// only needed by IE10 and IE11 to fix https://github.com/elm/file/issues/10
+	// all other browsers can just run `new Blob([bytes])` directly with no problem
+	//
+	return new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+}
+
+function _File_click(node)
+{
+	// only needed by IE10 and IE11 to fix https://github.com/elm/file/issues/11
+	// all other browsers have MouseEvent and do not need this conditional stuff
+	//
+	if (typeof MouseEvent === 'function')
+	{
+		node.dispatchEvent(new MouseEvent('click'));
+	}
+	else
+	{
+		var event = document.createEvent('MouseEvents');
+		event.initMouseEvent('click', true, true, window, 0, 0, 0, 0, 0, false, false, false, false, 0, null);
+		document.body.appendChild(node);
+		node.dispatchEvent(event);
+		document.body.removeChild(node);
+	}
+}
+
+
+// UPLOAD
+
+var _File_node;
+
+function _File_uploadOne(mimes)
+{
+	return _Scheduler_binding(function(callback)
+	{
+		_File_node = document.createElement('input');
+		_File_node.type = 'file';
+		_File_node.accept = A2($elm$core$String$join, ',', mimes);
+		_File_node.addEventListener('change', function(event)
+		{
+			callback(_Scheduler_succeed(event.target.files[0]));
+		});
+		_File_click(_File_node);
+	});
+}
+
+function _File_uploadOneOrMore(mimes)
+{
+	return _Scheduler_binding(function(callback)
+	{
+		_File_node = document.createElement('input');
+		_File_node.type = 'file';
+		_File_node.multiple = true;
+		_File_node.accept = A2($elm$core$String$join, ',', mimes);
+		_File_node.addEventListener('change', function(event)
+		{
+			var elmFiles = _List_fromArray(event.target.files);
+			callback(_Scheduler_succeed(_Utils_Tuple2(elmFiles.a, elmFiles.b)));
+		});
+		_File_click(_File_node);
+	});
+}
+
+
+// CONTENT
+
+function _File_toString(blob)
+{
+	return _Scheduler_binding(function(callback)
+	{
+		var reader = new FileReader();
+		reader.addEventListener('loadend', function() {
+			callback(_Scheduler_succeed(reader.result));
+		});
+		reader.readAsText(blob);
+		return function() { reader.abort(); };
+	});
+}
+
+function _File_toBytes(blob)
+{
+	return _Scheduler_binding(function(callback)
+	{
+		var reader = new FileReader();
+		reader.addEventListener('loadend', function() {
+			callback(_Scheduler_succeed(new DataView(reader.result)));
+		});
+		reader.readAsArrayBuffer(blob);
+		return function() { reader.abort(); };
+	});
+}
+
+function _File_toUrl(blob)
+{
+	return _Scheduler_binding(function(callback)
+	{
+		var reader = new FileReader();
+		reader.addEventListener('loadend', function() {
+			callback(_Scheduler_succeed(reader.result));
+		});
+		reader.readAsDataURL(blob);
+		return function() { reader.abort(); };
+	});
+}
+
+
+
+
 var _Bitwise_and = F2(function(a, b)
 {
 	return a & b;
@@ -5217,8 +5395,20 @@ var $author$project$Zoom$init = function (_v0) {
 	return _Utils_Tuple2(
 		{
 			center: {x: 0, y: 0},
+			data: _List_fromArray(
+				[
+					{s: 77, w: 'AMD Athlon 64 3500+', x: 65, y: 45},
+					{s: 192, w: 'AMD Athlon 200GE', x: 14, y: 35},
+					{s: 160, w: 'Intel Xeon E5-2603 v2', x: 22, y: 80},
+					{s: 258, w: 'AMD Phenom II X4 980 BE', x: 45, y: 125},
+					{s: 160, w: '\tIntel Xeon E5-2470 v2', x: 22, y: 95}
+				]),
 			dragging: $author$project$Zoom$None,
-			percentage: 100
+			percentage: 100,
+			showSize: true,
+			showText: true,
+			textX: 'Process Size in nanometers',
+			textY: 'Thermal Design Power in Watts'
 		},
 		$elm$core$Platform$Cmd$none);
 };
@@ -5227,9 +5417,1139 @@ var $elm$core$Platform$Sub$none = $elm$core$Platform$Sub$batch(_List_Nil);
 var $author$project$Zoom$CouldStillBeClick = function (a) {
 	return {$: 'CouldStillBeClick', a: a};
 };
+var $author$project$Zoom$FileLoad = function (a) {
+	return {$: 'FileLoad', a: a};
+};
+var $author$project$Zoom$FileUpload = function (a) {
+	return {$: 'FileUpload', a: a};
+};
 var $author$project$Zoom$ForSureDragging = function (a) {
 	return {$: 'ForSureDragging', a: a};
 };
+var $BrianHicks$elm_csv$Csv$Decode$NoFieldNames = {$: 'NoFieldNames'};
+var $BrianHicks$elm_csv$Csv$Decode$ParsingError = function (a) {
+	return {$: 'ParsingError', a: a};
+};
+var $elm$core$Result$andThen = F2(
+	function (callback, result) {
+		if (result.$ === 'Ok') {
+			var value = result.a;
+			return callback(value);
+		} else {
+			var msg = result.a;
+			return $elm$core$Result$Err(msg);
+		}
+	});
+var $BrianHicks$elm_csv$Csv$Decode$DecodingErrors = function (a) {
+	return {$: 'DecodingErrors', a: a};
+};
+var $BrianHicks$elm_csv$Csv$Decode$OnlyColumn_ = {$: 'OnlyColumn_'};
+var $elm$core$Basics$composeL = F3(
+	function (g, f, x) {
+		return g(
+			f(x));
+	});
+var $elm$core$List$append = F2(
+	function (xs, ys) {
+		if (!ys.b) {
+			return xs;
+		} else {
+			return A3($elm$core$List$foldr, $elm$core$List$cons, ys, xs);
+		}
+	});
+var $elm$core$List$concat = function (lists) {
+	return A3($elm$core$List$foldr, $elm$core$List$append, _List_Nil, lists);
+};
+var $BrianHicks$elm_csv$Csv$Decode$NoFieldNamesOnFirstRow = {$: 'NoFieldNamesOnFirstRow'};
+var $elm$core$Dict$RBEmpty_elm_builtin = {$: 'RBEmpty_elm_builtin'};
+var $elm$core$Dict$empty = $elm$core$Dict$RBEmpty_elm_builtin;
+var $elm$core$Dict$Black = {$: 'Black'};
+var $elm$core$Dict$RBNode_elm_builtin = F5(
+	function (a, b, c, d, e) {
+		return {$: 'RBNode_elm_builtin', a: a, b: b, c: c, d: d, e: e};
+	});
+var $elm$core$Dict$Red = {$: 'Red'};
+var $elm$core$Dict$balance = F5(
+	function (color, key, value, left, right) {
+		if ((right.$ === 'RBNode_elm_builtin') && (right.a.$ === 'Red')) {
+			var _v1 = right.a;
+			var rK = right.b;
+			var rV = right.c;
+			var rLeft = right.d;
+			var rRight = right.e;
+			if ((left.$ === 'RBNode_elm_builtin') && (left.a.$ === 'Red')) {
+				var _v3 = left.a;
+				var lK = left.b;
+				var lV = left.c;
+				var lLeft = left.d;
+				var lRight = left.e;
+				return A5(
+					$elm$core$Dict$RBNode_elm_builtin,
+					$elm$core$Dict$Red,
+					key,
+					value,
+					A5($elm$core$Dict$RBNode_elm_builtin, $elm$core$Dict$Black, lK, lV, lLeft, lRight),
+					A5($elm$core$Dict$RBNode_elm_builtin, $elm$core$Dict$Black, rK, rV, rLeft, rRight));
+			} else {
+				return A5(
+					$elm$core$Dict$RBNode_elm_builtin,
+					color,
+					rK,
+					rV,
+					A5($elm$core$Dict$RBNode_elm_builtin, $elm$core$Dict$Red, key, value, left, rLeft),
+					rRight);
+			}
+		} else {
+			if ((((left.$ === 'RBNode_elm_builtin') && (left.a.$ === 'Red')) && (left.d.$ === 'RBNode_elm_builtin')) && (left.d.a.$ === 'Red')) {
+				var _v5 = left.a;
+				var lK = left.b;
+				var lV = left.c;
+				var _v6 = left.d;
+				var _v7 = _v6.a;
+				var llK = _v6.b;
+				var llV = _v6.c;
+				var llLeft = _v6.d;
+				var llRight = _v6.e;
+				var lRight = left.e;
+				return A5(
+					$elm$core$Dict$RBNode_elm_builtin,
+					$elm$core$Dict$Red,
+					lK,
+					lV,
+					A5($elm$core$Dict$RBNode_elm_builtin, $elm$core$Dict$Black, llK, llV, llLeft, llRight),
+					A5($elm$core$Dict$RBNode_elm_builtin, $elm$core$Dict$Black, key, value, lRight, right));
+			} else {
+				return A5($elm$core$Dict$RBNode_elm_builtin, color, key, value, left, right);
+			}
+		}
+	});
+var $elm$core$Basics$compare = _Utils_compare;
+var $elm$core$Dict$insertHelp = F3(
+	function (key, value, dict) {
+		if (dict.$ === 'RBEmpty_elm_builtin') {
+			return A5($elm$core$Dict$RBNode_elm_builtin, $elm$core$Dict$Red, key, value, $elm$core$Dict$RBEmpty_elm_builtin, $elm$core$Dict$RBEmpty_elm_builtin);
+		} else {
+			var nColor = dict.a;
+			var nKey = dict.b;
+			var nValue = dict.c;
+			var nLeft = dict.d;
+			var nRight = dict.e;
+			var _v1 = A2($elm$core$Basics$compare, key, nKey);
+			switch (_v1.$) {
+				case 'LT':
+					return A5(
+						$elm$core$Dict$balance,
+						nColor,
+						nKey,
+						nValue,
+						A3($elm$core$Dict$insertHelp, key, value, nLeft),
+						nRight);
+				case 'EQ':
+					return A5($elm$core$Dict$RBNode_elm_builtin, nColor, nKey, value, nLeft, nRight);
+				default:
+					return A5(
+						$elm$core$Dict$balance,
+						nColor,
+						nKey,
+						nValue,
+						nLeft,
+						A3($elm$core$Dict$insertHelp, key, value, nRight));
+			}
+		}
+	});
+var $elm$core$Dict$insert = F3(
+	function (key, value, dict) {
+		var _v0 = A3($elm$core$Dict$insertHelp, key, value, dict);
+		if ((_v0.$ === 'RBNode_elm_builtin') && (_v0.a.$ === 'Red')) {
+			var _v1 = _v0.a;
+			var k = _v0.b;
+			var v = _v0.c;
+			var l = _v0.d;
+			var r = _v0.e;
+			return A5($elm$core$Dict$RBNode_elm_builtin, $elm$core$Dict$Black, k, v, l, r);
+		} else {
+			var x = _v0;
+			return x;
+		}
+	});
+var $elm$core$String$trim = _String_trim;
+var $BrianHicks$elm_csv$Csv$Decode$getFieldNames = F2(
+	function (headers, rows) {
+		var fromList = function (names) {
+			return A3(
+				$elm$core$List$foldl,
+				F2(
+					function (name, _v2) {
+						var soFar = _v2.a;
+						var i = _v2.b;
+						return _Utils_Tuple2(
+							A3($elm$core$Dict$insert, name, i, soFar),
+							i + 1);
+					}),
+				_Utils_Tuple2($elm$core$Dict$empty, 0),
+				names).a;
+		};
+		switch (headers.$) {
+			case 'NoFieldNames':
+				return $elm$core$Result$Ok(
+					_Utils_Tuple3(
+						{available: false, names: $elm$core$Dict$empty},
+						0,
+						rows));
+			case 'CustomFieldNames':
+				var names = headers.a;
+				return $elm$core$Result$Ok(
+					_Utils_Tuple3(
+						{
+							available: true,
+							names: fromList(names)
+						},
+						0,
+						rows));
+			default:
+				if (!rows.b) {
+					return $elm$core$Result$Err($BrianHicks$elm_csv$Csv$Decode$NoFieldNamesOnFirstRow);
+				} else {
+					var first = rows.a;
+					var rest = rows.b;
+					return $elm$core$Result$Ok(
+						_Utils_Tuple3(
+							{
+								available: true,
+								names: fromList(
+									A2($elm$core$List$map, $elm$core$String$trim, first))
+							},
+							1,
+							rest));
+				}
+		}
+	});
+var $elm$core$Result$map = F2(
+	function (func, ra) {
+		if (ra.$ === 'Ok') {
+			var a = ra.a;
+			return $elm$core$Result$Ok(
+				func(a));
+		} else {
+			var e = ra.a;
+			return $elm$core$Result$Err(e);
+		}
+	});
+var $elm$core$Result$mapError = F2(
+	function (f, result) {
+		if (result.$ === 'Ok') {
+			var v = result.a;
+			return $elm$core$Result$Ok(v);
+		} else {
+			var e = result.a;
+			return $elm$core$Result$Err(
+				f(e));
+		}
+	});
+var $BrianHicks$elm_csv$Csv$Decode$applyDecoder = F3(
+	function (fieldNames, _v0, allRows) {
+		var decode = _v0.a;
+		var defaultLocation = $BrianHicks$elm_csv$Csv$Decode$OnlyColumn_;
+		return A2(
+			$elm$core$Result$andThen,
+			function (_v1) {
+				var resolvedNames = _v1.a;
+				var firstRowNumber = _v1.b;
+				var rows = _v1.c;
+				return A2(
+					$elm$core$Result$mapError,
+					A2(
+						$elm$core$Basics$composeL,
+						A2($elm$core$Basics$composeL, $BrianHicks$elm_csv$Csv$Decode$DecodingErrors, $elm$core$List$concat),
+						$elm$core$List$reverse),
+					A2(
+						$elm$core$Result$map,
+						$elm$core$List$reverse,
+						A3(
+							$elm$core$List$foldl,
+							F2(
+								function (row, _v2) {
+									var soFar = _v2.a;
+									var rowNum = _v2.b;
+									return _Utils_Tuple2(
+										function () {
+											var _v3 = A4(decode, defaultLocation, resolvedNames, rowNum, row);
+											if (_v3.$ === 'Ok') {
+												var val = _v3.a;
+												if (soFar.$ === 'Ok') {
+													var values = soFar.a;
+													return $elm$core$Result$Ok(
+														A2($elm$core$List$cons, val, values));
+												} else {
+													var errs = soFar.a;
+													return $elm$core$Result$Err(errs);
+												}
+											} else {
+												var err = _v3.a;
+												if (soFar.$ === 'Ok') {
+													return $elm$core$Result$Err(
+														_List_fromArray(
+															[err]));
+												} else {
+													var errs = soFar.a;
+													return $elm$core$Result$Err(
+														A2($elm$core$List$cons, err, errs));
+												}
+											}
+										}(),
+										rowNum + 1);
+								}),
+							_Utils_Tuple2(
+								$elm$core$Result$Ok(_List_Nil),
+								firstRowNumber),
+							rows).a));
+			},
+			A2($BrianHicks$elm_csv$Csv$Decode$getFieldNames, fieldNames, allRows));
+	});
+var $BrianHicks$elm_csv$Csv$Parser$AdditionalCharactersAfterClosingQuote = function (a) {
+	return {$: 'AdditionalCharactersAfterClosingQuote', a: a};
+};
+var $BrianHicks$elm_csv$Csv$Parser$SourceEndedWithoutClosingQuote = function (a) {
+	return {$: 'SourceEndedWithoutClosingQuote', a: a};
+};
+var $elm$core$String$cons = _String_cons;
+var $elm$core$String$fromChar = function (_char) {
+	return A2($elm$core$String$cons, _char, '');
+};
+var $elm$core$Basics$ge = _Utils_ge;
+var $BrianHicks$elm_csv$Csv$Parser$parse = F2(
+	function (config, source) {
+		var finalLength = $elm$core$String$length(source);
+		var parseQuotedField = F4(
+			function (isFieldSeparator, soFar, startOffset, endOffset) {
+				parseQuotedField:
+				while (true) {
+					if ((endOffset - finalLength) >= 0) {
+						return $elm$core$Result$Err($BrianHicks$elm_csv$Csv$Parser$SourceEndedWithoutClosingQuote);
+					} else {
+						if (A3($elm$core$String$slice, endOffset, endOffset + 1, source) === '\"') {
+							var segment = A3($elm$core$String$slice, startOffset, endOffset, source);
+							if (((endOffset + 1) - finalLength) >= 0) {
+								return $elm$core$Result$Ok(
+									_Utils_Tuple3(
+										_Utils_ap(soFar, segment),
+										endOffset + 1,
+										false));
+							} else {
+								var next = A3($elm$core$String$slice, endOffset + 1, endOffset + 2, source);
+								if (next === '\"') {
+									var newPos = endOffset + 2;
+									var $temp$isFieldSeparator = isFieldSeparator,
+										$temp$soFar = soFar + (segment + '\"'),
+										$temp$startOffset = newPos,
+										$temp$endOffset = newPos;
+									isFieldSeparator = $temp$isFieldSeparator;
+									soFar = $temp$soFar;
+									startOffset = $temp$startOffset;
+									endOffset = $temp$endOffset;
+									continue parseQuotedField;
+								} else {
+									if (isFieldSeparator(next)) {
+										return $elm$core$Result$Ok(
+											_Utils_Tuple3(
+												_Utils_ap(soFar, segment),
+												endOffset + 2,
+												false));
+									} else {
+										if (next === '\n') {
+											return $elm$core$Result$Ok(
+												_Utils_Tuple3(
+													_Utils_ap(soFar, segment),
+													endOffset + 2,
+													true));
+										} else {
+											if ((next === '\u000D') && (A3($elm$core$String$slice, endOffset + 2, endOffset + 3, source) === '\n')) {
+												return $elm$core$Result$Ok(
+													_Utils_Tuple3(
+														_Utils_ap(soFar, segment),
+														endOffset + 3,
+														true));
+											} else {
+												return $elm$core$Result$Err($BrianHicks$elm_csv$Csv$Parser$AdditionalCharactersAfterClosingQuote);
+											}
+										}
+									}
+								}
+							}
+						} else {
+							var $temp$isFieldSeparator = isFieldSeparator,
+								$temp$soFar = soFar,
+								$temp$startOffset = startOffset,
+								$temp$endOffset = endOffset + 1;
+							isFieldSeparator = $temp$isFieldSeparator;
+							soFar = $temp$soFar;
+							startOffset = $temp$startOffset;
+							endOffset = $temp$endOffset;
+							continue parseQuotedField;
+						}
+					}
+				}
+			});
+		var parseComma = F4(
+			function (row, rows, startOffset, endOffset) {
+				parseComma:
+				while (true) {
+					if ((endOffset - finalLength) >= 0) {
+						var finalField = A3($elm$core$String$slice, startOffset, endOffset, source);
+						return ((finalField === '') && _Utils_eq(row, _List_Nil)) ? $elm$core$Result$Ok(
+							$elm$core$List$reverse(rows)) : $elm$core$Result$Ok(
+							$elm$core$List$reverse(
+								A2(
+									$elm$core$List$cons,
+									$elm$core$List$reverse(
+										A2($elm$core$List$cons, finalField, row)),
+									rows)));
+					} else {
+						var first = A3($elm$core$String$slice, endOffset, endOffset + 1, source);
+						if (first === ',') {
+							var newPos = endOffset + 1;
+							var $temp$row = A2(
+								$elm$core$List$cons,
+								A3($elm$core$String$slice, startOffset, endOffset, source),
+								row),
+								$temp$rows = rows,
+								$temp$startOffset = newPos,
+								$temp$endOffset = newPos;
+							row = $temp$row;
+							rows = $temp$rows;
+							startOffset = $temp$startOffset;
+							endOffset = $temp$endOffset;
+							continue parseComma;
+						} else {
+							if (first === '\n') {
+								var newPos = endOffset + 1;
+								var $temp$row = _List_Nil,
+									$temp$rows = A2(
+									$elm$core$List$cons,
+									$elm$core$List$reverse(
+										A2(
+											$elm$core$List$cons,
+											A3($elm$core$String$slice, startOffset, endOffset, source),
+											row)),
+									rows),
+									$temp$startOffset = newPos,
+									$temp$endOffset = newPos;
+								row = $temp$row;
+								rows = $temp$rows;
+								startOffset = $temp$startOffset;
+								endOffset = $temp$endOffset;
+								continue parseComma;
+							} else {
+								if ((first === '\u000D') && (A3($elm$core$String$slice, endOffset + 1, endOffset + 2, source) === '\n')) {
+									var newPos = endOffset + 2;
+									var $temp$row = _List_Nil,
+										$temp$rows = A2(
+										$elm$core$List$cons,
+										$elm$core$List$reverse(
+											A2(
+												$elm$core$List$cons,
+												A3($elm$core$String$slice, startOffset, endOffset, source),
+												row)),
+										rows),
+										$temp$startOffset = newPos,
+										$temp$endOffset = newPos;
+									row = $temp$row;
+									rows = $temp$rows;
+									startOffset = $temp$startOffset;
+									endOffset = $temp$endOffset;
+									continue parseComma;
+								} else {
+									if (first === '\"') {
+										var newPos = endOffset + 1;
+										var _v0 = A4(
+											parseQuotedField,
+											function (c) {
+												return c === ',';
+											},
+											'',
+											newPos,
+											newPos);
+										if (_v0.$ === 'Ok') {
+											var _v1 = _v0.a;
+											var value = _v1.a;
+											var afterQuotedField = _v1.b;
+											var rowEnded = _v1.c;
+											if (_Utils_cmp(afterQuotedField, finalLength) > -1) {
+												return $elm$core$Result$Ok(
+													$elm$core$List$reverse(
+														A2(
+															$elm$core$List$cons,
+															$elm$core$List$reverse(
+																A2($elm$core$List$cons, value, row)),
+															rows)));
+											} else {
+												if (rowEnded) {
+													var $temp$row = _List_Nil,
+														$temp$rows = A2(
+														$elm$core$List$cons,
+														$elm$core$List$reverse(
+															A2($elm$core$List$cons, value, row)),
+														rows),
+														$temp$startOffset = afterQuotedField,
+														$temp$endOffset = afterQuotedField;
+													row = $temp$row;
+													rows = $temp$rows;
+													startOffset = $temp$startOffset;
+													endOffset = $temp$endOffset;
+													continue parseComma;
+												} else {
+													var $temp$row = A2($elm$core$List$cons, value, row),
+														$temp$rows = rows,
+														$temp$startOffset = afterQuotedField,
+														$temp$endOffset = afterQuotedField;
+													row = $temp$row;
+													rows = $temp$rows;
+													startOffset = $temp$startOffset;
+													endOffset = $temp$endOffset;
+													continue parseComma;
+												}
+											}
+										} else {
+											var problem = _v0.a;
+											return $elm$core$Result$Err(
+												problem(
+													$elm$core$List$length(rows) + 1));
+										}
+									} else {
+										var $temp$row = row,
+											$temp$rows = rows,
+											$temp$startOffset = startOffset,
+											$temp$endOffset = endOffset + 1;
+										row = $temp$row;
+										rows = $temp$rows;
+										startOffset = $temp$startOffset;
+										endOffset = $temp$endOffset;
+										continue parseComma;
+									}
+								}
+							}
+						}
+					}
+				}
+			});
+		var parseHelp = F5(
+			function (isFieldSeparator, row, rows, startOffset, endOffset) {
+				parseHelp:
+				while (true) {
+					if ((endOffset - finalLength) >= 0) {
+						var finalField = A3($elm$core$String$slice, startOffset, endOffset, source);
+						return ((finalField === '') && _Utils_eq(row, _List_Nil)) ? $elm$core$Result$Ok(
+							$elm$core$List$reverse(rows)) : $elm$core$Result$Ok(
+							$elm$core$List$reverse(
+								A2(
+									$elm$core$List$cons,
+									$elm$core$List$reverse(
+										A2($elm$core$List$cons, finalField, row)),
+									rows)));
+					} else {
+						var first = A3($elm$core$String$slice, endOffset, endOffset + 1, source);
+						if (isFieldSeparator(first)) {
+							var newPos = endOffset + 1;
+							var $temp$isFieldSeparator = isFieldSeparator,
+								$temp$row = A2(
+								$elm$core$List$cons,
+								A3($elm$core$String$slice, startOffset, endOffset, source),
+								row),
+								$temp$rows = rows,
+								$temp$startOffset = newPos,
+								$temp$endOffset = newPos;
+							isFieldSeparator = $temp$isFieldSeparator;
+							row = $temp$row;
+							rows = $temp$rows;
+							startOffset = $temp$startOffset;
+							endOffset = $temp$endOffset;
+							continue parseHelp;
+						} else {
+							if (first === '\n') {
+								var newPos = endOffset + 1;
+								var $temp$isFieldSeparator = isFieldSeparator,
+									$temp$row = _List_Nil,
+									$temp$rows = A2(
+									$elm$core$List$cons,
+									$elm$core$List$reverse(
+										A2(
+											$elm$core$List$cons,
+											A3($elm$core$String$slice, startOffset, endOffset, source),
+											row)),
+									rows),
+									$temp$startOffset = newPos,
+									$temp$endOffset = newPos;
+								isFieldSeparator = $temp$isFieldSeparator;
+								row = $temp$row;
+								rows = $temp$rows;
+								startOffset = $temp$startOffset;
+								endOffset = $temp$endOffset;
+								continue parseHelp;
+							} else {
+								if ((first === '\u000D') && (A3($elm$core$String$slice, endOffset + 1, endOffset + 2, source) === '\n')) {
+									var newPos = endOffset + 2;
+									var $temp$isFieldSeparator = isFieldSeparator,
+										$temp$row = _List_Nil,
+										$temp$rows = A2(
+										$elm$core$List$cons,
+										$elm$core$List$reverse(
+											A2(
+												$elm$core$List$cons,
+												A3($elm$core$String$slice, startOffset, endOffset, source),
+												row)),
+										rows),
+										$temp$startOffset = newPos,
+										$temp$endOffset = newPos;
+									isFieldSeparator = $temp$isFieldSeparator;
+									row = $temp$row;
+									rows = $temp$rows;
+									startOffset = $temp$startOffset;
+									endOffset = $temp$endOffset;
+									continue parseHelp;
+								} else {
+									if (first === '\"') {
+										var newPos = endOffset + 1;
+										var _v2 = A4(parseQuotedField, isFieldSeparator, '', newPos, newPos);
+										if (_v2.$ === 'Ok') {
+											var _v3 = _v2.a;
+											var value = _v3.a;
+											var afterQuotedField = _v3.b;
+											var rowEnded = _v3.c;
+											if (_Utils_cmp(afterQuotedField, finalLength) > -1) {
+												return $elm$core$Result$Ok(
+													$elm$core$List$reverse(
+														A2(
+															$elm$core$List$cons,
+															$elm$core$List$reverse(
+																A2($elm$core$List$cons, value, row)),
+															rows)));
+											} else {
+												if (rowEnded) {
+													var $temp$isFieldSeparator = isFieldSeparator,
+														$temp$row = _List_Nil,
+														$temp$rows = A2(
+														$elm$core$List$cons,
+														$elm$core$List$reverse(
+															A2($elm$core$List$cons, value, row)),
+														rows),
+														$temp$startOffset = afterQuotedField,
+														$temp$endOffset = afterQuotedField;
+													isFieldSeparator = $temp$isFieldSeparator;
+													row = $temp$row;
+													rows = $temp$rows;
+													startOffset = $temp$startOffset;
+													endOffset = $temp$endOffset;
+													continue parseHelp;
+												} else {
+													var $temp$isFieldSeparator = isFieldSeparator,
+														$temp$row = A2($elm$core$List$cons, value, row),
+														$temp$rows = rows,
+														$temp$startOffset = afterQuotedField,
+														$temp$endOffset = afterQuotedField;
+													isFieldSeparator = $temp$isFieldSeparator;
+													row = $temp$row;
+													rows = $temp$rows;
+													startOffset = $temp$startOffset;
+													endOffset = $temp$endOffset;
+													continue parseHelp;
+												}
+											}
+										} else {
+											var problem = _v2.a;
+											return $elm$core$Result$Err(
+												problem(
+													$elm$core$List$length(rows) + 1));
+										}
+									} else {
+										var $temp$isFieldSeparator = isFieldSeparator,
+											$temp$row = row,
+											$temp$rows = rows,
+											$temp$startOffset = startOffset,
+											$temp$endOffset = endOffset + 1;
+										isFieldSeparator = $temp$isFieldSeparator;
+										row = $temp$row;
+										rows = $temp$rows;
+										startOffset = $temp$startOffset;
+										endOffset = $temp$endOffset;
+										continue parseHelp;
+									}
+								}
+							}
+						}
+					}
+				}
+			});
+		var parseSemicolon = F4(
+			function (row, rows, startOffset, endOffset) {
+				parseSemicolon:
+				while (true) {
+					if ((endOffset - finalLength) >= 0) {
+						var finalField = A3($elm$core$String$slice, startOffset, endOffset, source);
+						return ((finalField === '') && _Utils_eq(row, _List_Nil)) ? $elm$core$Result$Ok(
+							$elm$core$List$reverse(rows)) : $elm$core$Result$Ok(
+							$elm$core$List$reverse(
+								A2(
+									$elm$core$List$cons,
+									$elm$core$List$reverse(
+										A2($elm$core$List$cons, finalField, row)),
+									rows)));
+					} else {
+						var first = A3($elm$core$String$slice, endOffset, endOffset + 1, source);
+						if (first === ';') {
+							var newPos = endOffset + 1;
+							var $temp$row = A2(
+								$elm$core$List$cons,
+								A3($elm$core$String$slice, startOffset, endOffset, source),
+								row),
+								$temp$rows = rows,
+								$temp$startOffset = newPos,
+								$temp$endOffset = newPos;
+							row = $temp$row;
+							rows = $temp$rows;
+							startOffset = $temp$startOffset;
+							endOffset = $temp$endOffset;
+							continue parseSemicolon;
+						} else {
+							if (first === '\n') {
+								var newPos = endOffset + 1;
+								var $temp$row = _List_Nil,
+									$temp$rows = A2(
+									$elm$core$List$cons,
+									$elm$core$List$reverse(
+										A2(
+											$elm$core$List$cons,
+											A3($elm$core$String$slice, startOffset, endOffset, source),
+											row)),
+									rows),
+									$temp$startOffset = newPos,
+									$temp$endOffset = newPos;
+								row = $temp$row;
+								rows = $temp$rows;
+								startOffset = $temp$startOffset;
+								endOffset = $temp$endOffset;
+								continue parseSemicolon;
+							} else {
+								if ((first === '\u000D') && (A3($elm$core$String$slice, endOffset + 1, endOffset + 2, source) === '\n')) {
+									var newPos = endOffset + 2;
+									var $temp$row = _List_Nil,
+										$temp$rows = A2(
+										$elm$core$List$cons,
+										$elm$core$List$reverse(
+											A2(
+												$elm$core$List$cons,
+												A3($elm$core$String$slice, startOffset, endOffset, source),
+												row)),
+										rows),
+										$temp$startOffset = newPos,
+										$temp$endOffset = newPos;
+									row = $temp$row;
+									rows = $temp$rows;
+									startOffset = $temp$startOffset;
+									endOffset = $temp$endOffset;
+									continue parseSemicolon;
+								} else {
+									if (first === '\"') {
+										var newPos = endOffset + 1;
+										var _v4 = A4(
+											parseQuotedField,
+											function (c) {
+												return c === ';';
+											},
+											'',
+											newPos,
+											newPos);
+										if (_v4.$ === 'Ok') {
+											var _v5 = _v4.a;
+											var value = _v5.a;
+											var afterQuotedField = _v5.b;
+											var rowEnded = _v5.c;
+											if (_Utils_cmp(afterQuotedField, finalLength) > -1) {
+												return $elm$core$Result$Ok(
+													$elm$core$List$reverse(
+														A2(
+															$elm$core$List$cons,
+															$elm$core$List$reverse(
+																A2($elm$core$List$cons, value, row)),
+															rows)));
+											} else {
+												if (rowEnded) {
+													var $temp$row = _List_Nil,
+														$temp$rows = A2(
+														$elm$core$List$cons,
+														$elm$core$List$reverse(
+															A2($elm$core$List$cons, value, row)),
+														rows),
+														$temp$startOffset = afterQuotedField,
+														$temp$endOffset = afterQuotedField;
+													row = $temp$row;
+													rows = $temp$rows;
+													startOffset = $temp$startOffset;
+													endOffset = $temp$endOffset;
+													continue parseSemicolon;
+												} else {
+													var $temp$row = A2($elm$core$List$cons, value, row),
+														$temp$rows = rows,
+														$temp$startOffset = afterQuotedField,
+														$temp$endOffset = afterQuotedField;
+													row = $temp$row;
+													rows = $temp$rows;
+													startOffset = $temp$startOffset;
+													endOffset = $temp$endOffset;
+													continue parseSemicolon;
+												}
+											}
+										} else {
+											var problem = _v4.a;
+											return $elm$core$Result$Err(
+												problem(
+													$elm$core$List$length(rows) + 1));
+										}
+									} else {
+										var $temp$row = row,
+											$temp$rows = rows,
+											$temp$startOffset = startOffset,
+											$temp$endOffset = endOffset + 1;
+										row = $temp$row;
+										rows = $temp$rows;
+										startOffset = $temp$startOffset;
+										endOffset = $temp$endOffset;
+										continue parseSemicolon;
+									}
+								}
+							}
+						}
+					}
+				}
+			});
+		var fieldSeparator = $elm$core$String$fromChar(config.fieldSeparator);
+		return $elm$core$String$isEmpty(source) ? $elm$core$Result$Ok(_List_Nil) : (_Utils_eq(
+			config.fieldSeparator,
+			_Utils_chr(',')) ? A4(parseComma, _List_Nil, _List_Nil, 0, 0) : (_Utils_eq(
+			config.fieldSeparator,
+			_Utils_chr(';')) ? A4(parseSemicolon, _List_Nil, _List_Nil, 0, 0) : A5(
+			parseHelp,
+			function (s) {
+				return _Utils_eq(s, fieldSeparator);
+			},
+			_List_Nil,
+			_List_Nil,
+			0,
+			0)));
+	});
+var $BrianHicks$elm_csv$Csv$Decode$decodeCustom = F4(
+	function (config, fieldNames, decoder, source) {
+		return A2(
+			$elm$core$Result$andThen,
+			A2($BrianHicks$elm_csv$Csv$Decode$applyDecoder, fieldNames, decoder),
+			A2(
+				$elm$core$Result$mapError,
+				$BrianHicks$elm_csv$Csv$Decode$ParsingError,
+				A2($BrianHicks$elm_csv$Csv$Parser$parse, config, source)));
+	});
+var $BrianHicks$elm_csv$Csv$Decode$decodeCsv = $BrianHicks$elm_csv$Csv$Decode$decodeCustom(
+	{
+		fieldSeparator: _Utils_chr(',')
+	});
+var $author$project$Zoom$Point = F4(
+	function (x, y, s, w) {
+		return {s: s, w: w, x: x, y: y};
+	});
+var $BrianHicks$elm_csv$Csv$Decode$Column_ = function (a) {
+	return {$: 'Column_', a: a};
+};
+var $BrianHicks$elm_csv$Csv$Decode$Decoder = function (a) {
+	return {$: 'Decoder', a: a};
+};
+var $BrianHicks$elm_csv$Csv$Decode$column = F2(
+	function (col, _v0) {
+		var decoder = _v0.a;
+		return $BrianHicks$elm_csv$Csv$Decode$Decoder(
+			F3(
+				function (_v1, fieldNames, row) {
+					return A3(
+						decoder,
+						$BrianHicks$elm_csv$Csv$Decode$Column_(col),
+						fieldNames,
+						row);
+				}));
+	});
+var $BrianHicks$elm_csv$Csv$Decode$ExpectedFloat = function (a) {
+	return {$: 'ExpectedFloat', a: a};
+};
+var $BrianHicks$elm_csv$Csv$Decode$ColumnNotFound = function (a) {
+	return {$: 'ColumnNotFound', a: a};
+};
+var $BrianHicks$elm_csv$Csv$Decode$ExpectedOneColumn = function (a) {
+	return {$: 'ExpectedOneColumn', a: a};
+};
+var $BrianHicks$elm_csv$Csv$Decode$FieldDecodingError = function (a) {
+	return {$: 'FieldDecodingError', a: a};
+};
+var $BrianHicks$elm_csv$Csv$Decode$FieldNotFound = function (a) {
+	return {$: 'FieldNotFound', a: a};
+};
+var $BrianHicks$elm_csv$Csv$Decode$FieldNotProvided = function (a) {
+	return {$: 'FieldNotProvided', a: a};
+};
+var $elm$core$List$drop = F2(
+	function (n, list) {
+		drop:
+		while (true) {
+			if (n <= 0) {
+				return list;
+			} else {
+				if (!list.b) {
+					return list;
+				} else {
+					var x = list.a;
+					var xs = list.b;
+					var $temp$n = n - 1,
+						$temp$list = xs;
+					n = $temp$n;
+					list = $temp$list;
+					continue drop;
+				}
+			}
+		}
+	});
+var $elm$core$Dict$get = F2(
+	function (targetKey, dict) {
+		get:
+		while (true) {
+			if (dict.$ === 'RBEmpty_elm_builtin') {
+				return $elm$core$Maybe$Nothing;
+			} else {
+				var key = dict.b;
+				var value = dict.c;
+				var left = dict.d;
+				var right = dict.e;
+				var _v1 = A2($elm$core$Basics$compare, targetKey, key);
+				switch (_v1.$) {
+					case 'LT':
+						var $temp$targetKey = targetKey,
+							$temp$dict = left;
+						targetKey = $temp$targetKey;
+						dict = $temp$dict;
+						continue get;
+					case 'EQ':
+						return $elm$core$Maybe$Just(value);
+					default:
+						var $temp$targetKey = targetKey,
+							$temp$dict = right;
+						targetKey = $temp$targetKey;
+						dict = $temp$dict;
+						continue get;
+				}
+			}
+		}
+	});
+var $elm$core$List$head = function (list) {
+	if (list.b) {
+		var x = list.a;
+		var xs = list.b;
+		return $elm$core$Maybe$Just(x);
+	} else {
+		return $elm$core$Maybe$Nothing;
+	}
+};
+var $BrianHicks$elm_csv$Csv$Decode$Column = function (a) {
+	return {$: 'Column', a: a};
+};
+var $BrianHicks$elm_csv$Csv$Decode$Field = F2(
+	function (a, b) {
+		return {$: 'Field', a: a, b: b};
+	});
+var $BrianHicks$elm_csv$Csv$Decode$OnlyColumn = {$: 'OnlyColumn'};
+var $BrianHicks$elm_csv$Csv$Decode$locationToColumn = F2(
+	function (fieldNames, location) {
+		switch (location.$) {
+			case 'Column_':
+				var i = location.a;
+				return $BrianHicks$elm_csv$Csv$Decode$Column(i);
+			case 'Field_':
+				var name = location.a;
+				return A2(
+					$BrianHicks$elm_csv$Csv$Decode$Field,
+					name,
+					A2($elm$core$Dict$get, name, fieldNames));
+			default:
+				return $BrianHicks$elm_csv$Csv$Decode$OnlyColumn;
+		}
+	});
+var $BrianHicks$elm_csv$Csv$Decode$fromString = function (convert) {
+	return $BrianHicks$elm_csv$Csv$Decode$Decoder(
+		F4(
+			function (location, _v0, rowNum, row) {
+				var names = _v0.names;
+				var error = function (problem) {
+					return $elm$core$Result$Err(
+						_List_fromArray(
+							[
+								$BrianHicks$elm_csv$Csv$Decode$FieldDecodingError(
+								{
+									column: A2($BrianHicks$elm_csv$Csv$Decode$locationToColumn, names, location),
+									problem: problem,
+									row: rowNum
+								})
+							]));
+				};
+				switch (location.$) {
+					case 'Column_':
+						var colNum = location.a;
+						var _v2 = $elm$core$List$head(
+							A2($elm$core$List$drop, colNum, row));
+						if (_v2.$ === 'Just') {
+							var value = _v2.a;
+							var _v3 = convert(value);
+							if (_v3.$ === 'Ok') {
+								var converted = _v3.a;
+								return $elm$core$Result$Ok(converted);
+							} else {
+								var problem = _v3.a;
+								return error(problem);
+							}
+						} else {
+							return error(
+								$BrianHicks$elm_csv$Csv$Decode$ColumnNotFound(colNum));
+						}
+					case 'Field_':
+						var name = location.a;
+						var _v4 = A2($elm$core$Dict$get, name, names);
+						if (_v4.$ === 'Just') {
+							var colNum = _v4.a;
+							var _v5 = $elm$core$List$head(
+								A2($elm$core$List$drop, colNum, row));
+							if (_v5.$ === 'Just') {
+								var value = _v5.a;
+								var _v6 = convert(value);
+								if (_v6.$ === 'Ok') {
+									var converted = _v6.a;
+									return $elm$core$Result$Ok(converted);
+								} else {
+									var problem = _v6.a;
+									return error(problem);
+								}
+							} else {
+								return error(
+									$BrianHicks$elm_csv$Csv$Decode$FieldNotFound(name));
+							}
+						} else {
+							return $elm$core$Result$Err(
+								_List_fromArray(
+									[
+										$BrianHicks$elm_csv$Csv$Decode$FieldNotProvided(name)
+									]));
+						}
+					default:
+						if (!row.b) {
+							return error(
+								$BrianHicks$elm_csv$Csv$Decode$ColumnNotFound(0));
+						} else {
+							if (!row.b.b) {
+								var only = row.a;
+								var _v8 = convert(only);
+								if (_v8.$ === 'Ok') {
+									var converted = _v8.a;
+									return $elm$core$Result$Ok(converted);
+								} else {
+									var problem = _v8.a;
+									return error(problem);
+								}
+							} else {
+								return error(
+									$BrianHicks$elm_csv$Csv$Decode$ExpectedOneColumn(
+										$elm$core$List$length(row)));
+							}
+						}
+				}
+			}));
+};
+var $elm$core$String$toFloat = _String_toFloat;
+var $BrianHicks$elm_csv$Csv$Decode$float = $BrianHicks$elm_csv$Csv$Decode$fromString(
+	function (value) {
+		var _v0 = $elm$core$String$toFloat(
+			$elm$core$String$trim(value));
+		if (_v0.$ === 'Just') {
+			var parsed = _v0.a;
+			return $elm$core$Result$Ok(parsed);
+		} else {
+			return $elm$core$Result$Err(
+				$BrianHicks$elm_csv$Csv$Decode$ExpectedFloat(value));
+		}
+	});
+var $BrianHicks$elm_csv$Csv$Decode$succeed = function (value) {
+	return $BrianHicks$elm_csv$Csv$Decode$Decoder(
+		F4(
+			function (_v0, _v1, _v2, _v3) {
+				return $elm$core$Result$Ok(value);
+			}));
+};
+var $BrianHicks$elm_csv$Csv$Decode$into = $BrianHicks$elm_csv$Csv$Decode$succeed;
+var $BrianHicks$elm_csv$Csv$Decode$map2 = F3(
+	function (transform, _v0, _v1) {
+		var decodeA = _v0.a;
+		var decodeB = _v1.a;
+		return $BrianHicks$elm_csv$Csv$Decode$Decoder(
+			F4(
+				function (location, fieldNames, rowNum, row) {
+					var _v2 = _Utils_Tuple2(
+						A4(decodeA, location, fieldNames, rowNum, row),
+						A4(decodeB, location, fieldNames, rowNum, row));
+					if (_v2.a.$ === 'Ok') {
+						if (_v2.b.$ === 'Ok') {
+							var a = _v2.a.a;
+							var b = _v2.b.a;
+							return $elm$core$Result$Ok(
+								A2(transform, a, b));
+						} else {
+							var b = _v2.b.a;
+							return $elm$core$Result$Err(b);
+						}
+					} else {
+						if (_v2.b.$ === 'Err') {
+							var a = _v2.a.a;
+							var b = _v2.b.a;
+							return $elm$core$Result$Err(
+								_Utils_ap(a, b));
+						} else {
+							var a = _v2.a.a;
+							return $elm$core$Result$Err(a);
+						}
+					}
+				}));
+	});
+var $BrianHicks$elm_csv$Csv$Decode$pipeline = $BrianHicks$elm_csv$Csv$Decode$map2(
+	F2(
+		function (value, fn) {
+			return fn(value);
+		}));
+var $BrianHicks$elm_csv$Csv$Decode$string = $BrianHicks$elm_csv$Csv$Decode$fromString($elm$core$Result$Ok);
+var $author$project$Zoom$decoder = A2(
+	$BrianHicks$elm_csv$Csv$Decode$pipeline,
+	A2($BrianHicks$elm_csv$Csv$Decode$column, 0, $BrianHicks$elm_csv$Csv$Decode$string),
+	A2(
+		$BrianHicks$elm_csv$Csv$Decode$pipeline,
+		A2($BrianHicks$elm_csv$Csv$Decode$column, 3, $BrianHicks$elm_csv$Csv$Decode$float),
+		A2(
+			$BrianHicks$elm_csv$Csv$Decode$pipeline,
+			A2($BrianHicks$elm_csv$Csv$Decode$column, 2, $BrianHicks$elm_csv$Csv$Decode$float),
+			A2(
+				$BrianHicks$elm_csv$Csv$Decode$pipeline,
+				A2($BrianHicks$elm_csv$Csv$Decode$column, 1, $BrianHicks$elm_csv$Csv$Decode$float),
+				$BrianHicks$elm_csv$Csv$Decode$into($author$project$Zoom$Point)))));
+var $elm$time$Time$Posix = function (a) {
+	return {$: 'Posix', a: a};
+};
+var $elm$time$Time$millisToPosix = $elm$time$Time$Posix;
+var $elm$file$File$Select$file = F2(
+	function (mimes, toMsg) {
+		return A2(
+			$elm$core$Task$perform,
+			toMsg,
+			_File_uploadOne(mimes));
+	});
+var $elm$core$Basics$not = _Basics_not;
+var $elm$file$File$toString = _File_toString;
 var $author$project$Zoom$updateCenter = F3(
 	function (center, prevOffset, offset) {
 		return {x: center.x + (prevOffset.x - offset.x), y: center.y + (prevOffset.y - offset.y)};
@@ -5318,7 +6638,7 @@ var $author$project$Zoom$update = F2(
 							percentage: A2($elm$core$Basics$max, 1, model.percentage - 20)
 						}),
 					$elm$core$Platform$Cmd$none);
-			default:
+			case 'OnZoomReset':
 				return _Utils_Tuple2(
 					_Utils_update(
 						model,
@@ -5327,8 +6647,78 @@ var $author$project$Zoom$update = F2(
 							percentage: 100
 						}),
 					$elm$core$Platform$Cmd$none);
+			case 'FileRequested':
+				return _Utils_Tuple2(
+					model,
+					A2(
+						$elm$file$File$Select$file,
+						_List_fromArray(
+							['text/csv']),
+						$author$project$Zoom$FileUpload));
+			case 'FileUpload':
+				var file = msg.a;
+				return _Utils_Tuple2(
+					model,
+					A2(
+						$elm$core$Task$perform,
+						$author$project$Zoom$FileLoad,
+						$elm$file$File$toString(file)));
+			case 'FileLoad':
+				var str = msg.a;
+				return _Utils_Tuple2(
+					_Utils_update(
+						model,
+						{
+							data: function () {
+								var _v3 = A3($BrianHicks$elm_csv$Csv$Decode$decodeCsv, $BrianHicks$elm_csv$Csv$Decode$NoFieldNames, $author$project$Zoom$decoder, str);
+								if (_v3.$ === 'Ok') {
+									var points = _v3.a;
+									return points;
+								} else {
+									var err = _v3.a;
+									return _List_Nil;
+								}
+							}()
+						}),
+					$elm$core$Platform$Cmd$none);
+			case 'ToggleShowSize':
+				return _Utils_Tuple2(
+					_Utils_update(
+						model,
+						{showSize: !model.showSize}),
+					$elm$core$Platform$Cmd$none);
+			case 'ToggleShowText':
+				return _Utils_Tuple2(
+					_Utils_update(
+						model,
+						{showText: !model.showText}),
+					$elm$core$Platform$Cmd$none);
+			case 'OnWheelEvent':
+				var delta = msg.a;
+				return _Utils_Tuple2(
+					_Utils_update(
+						model,
+						{
+							percentage: (delta > 0) ? (model.percentage + 20) : A2($elm$core$Basics$max, 1, model.percentage - 20)
+						}),
+					$elm$core$Platform$Cmd$none);
+			case 'UpdateTextX':
+				var text = msg.a;
+				return _Utils_Tuple2(
+					_Utils_update(
+						model,
+						{textX: text}),
+					$elm$core$Platform$Cmd$none);
+			default:
+				var text = msg.a;
+				return _Utils_Tuple2(
+					_Utils_update(
+						model,
+						{textY: text}),
+					$elm$core$Platform$Cmd$none);
 		}
 	});
+var $author$project$Zoom$FileRequested = {$: 'FileRequested'};
 var $author$project$Zoom$OnMouseDown = function (a) {
 	return {$: 'OnMouseDown', a: a};
 };
@@ -5343,6 +6733,14 @@ var $author$project$Zoom$OnMouseUp = F2(
 var $author$project$Zoom$OnZoomIn = {$: 'OnZoomIn'};
 var $author$project$Zoom$OnZoomOut = {$: 'OnZoomOut'};
 var $author$project$Zoom$OnZoomReset = {$: 'OnZoomReset'};
+var $author$project$Zoom$ToggleShowSize = {$: 'ToggleShowSize'};
+var $author$project$Zoom$ToggleShowText = {$: 'ToggleShowText'};
+var $author$project$Zoom$UpdateTextX = function (a) {
+	return {$: 'UpdateTextX', a: a};
+};
+var $author$project$Zoom$UpdateTextY = function (a) {
+	return {$: 'UpdateTextY', a: a};
+};
 var $terezka$elm_charts$Internal$Helpers$Attribute = function (a) {
 	return {$: 'Attribute', a: a};
 };
@@ -6114,17 +7512,6 @@ var $terezka$elm_charts$Chart$Attributes$color = function (v) {
 				{color: v});
 		});
 };
-var $elm$core$List$append = F2(
-	function (xs, ys) {
-		if (!ys.b) {
-			return xs;
-		} else {
-			return A3($elm$core$List$foldr, $elm$core$List$cons, ys, xs);
-		}
-	});
-var $elm$core$List$concat = function (lists) {
-	return A3($elm$core$List$foldr, $elm$core$List$append, _List_Nil, lists);
-};
 var $elm$core$List$concatMap = F2(
 	function (f, list) {
 		return $elm$core$List$concat(
@@ -6159,7 +7546,6 @@ var $terezka$elm_charts$Internal$Svg$isWithinPlane = F3(
 			A3($elm$core$Basics$clamp, plane.y.min, plane.y.max, y),
 			y);
 	});
-var $elm$core$Basics$not = _Basics_not;
 var $elm$svg$Svg$path = $elm$svg$Svg$trustedNode('path');
 var $elm$core$Basics$pi = _Basics_pi;
 var $elm$core$Basics$negate = function (n) {
@@ -7584,7 +8970,22 @@ var $terezka$elm_charts$Chart$chart = F2(
 			chartEls,
 			afterEls);
 	});
-var $terezka$elm_charts$Chart$Attributes$darkGray = $terezka$elm_charts$Internal$Helpers$darkGray;
+var $elm$json$Json$Encode$bool = _Json_wrap;
+var $elm$html$Html$Attributes$boolProperty = F2(
+	function (key, bool) {
+		return A2(
+			_VirtualDom_property,
+			key,
+			$elm$json$Json$Encode$bool(bool));
+	});
+var $elm$html$Html$Attributes$checked = $elm$html$Html$Attributes$boolProperty('checked');
+var $author$project$Zoom$OnWheelEvent = function (a) {
+	return {$: 'OnWheelEvent', a: a};
+};
+var $author$project$Zoom$chooseZoom = function (wheelEvent) {
+	var event = wheelEvent;
+	return $author$project$Zoom$OnWheelEvent(event.deltaY);
+};
 var $terezka$elm_charts$Chart$Attributes$domain = function (v) {
 	return $terezka$elm_charts$Internal$Helpers$Attribute(
 		function (config) {
@@ -7744,6 +9145,39 @@ var $terezka$elm_charts$Internal$Events$getOffset = $terezka$elm_charts$Internal
 			};
 		}));
 var $terezka$elm_charts$Chart$Events$getOffset = $terezka$elm_charts$Internal$Events$getOffset;
+var $elm$core$List$isEmpty = function (xs) {
+	if (!xs.b) {
+		return true;
+	} else {
+		return false;
+	}
+};
+var $elm$core$List$sortBy = _List_sortBy;
+var $author$project$Zoom$getPareto = function (points) {
+	var sorted = A2(
+		$elm$core$List$sortBy,
+		function ($) {
+			return $.x;
+		},
+		points);
+	var pareto = A3(
+		$elm$core$List$foldl,
+		F2(
+			function (p, acc) {
+				return ($elm$core$List$isEmpty(acc) || function () {
+					var _v0 = $elm$core$List$head(acc);
+					if (_v0.$ === 'Just') {
+						var headPoint = _v0.a;
+						return _Utils_cmp(headPoint.y, p.y) < 0;
+					} else {
+						return true;
+					}
+				}()) ? A2($elm$core$List$cons, p, acc) : acc;
+			}),
+		_List_Nil,
+		sorted);
+	return $elm$core$List$reverse(pareto);
+};
 var $terezka$elm_charts$Chart$Attributes$height = function (v) {
 	return $terezka$elm_charts$Internal$Helpers$Attribute(
 		function (config) {
@@ -7819,6 +9253,63 @@ var $terezka$elm_charts$Chart$Attributes$htmlAttrs = function (v) {
 				{htmlAttrs: v});
 		});
 };
+var $elm$html$Html$input = _VirtualDom_node('input');
+var $terezka$elm_charts$Internal$Svg$Linear = {$: 'Linear'};
+var $terezka$elm_charts$Chart$Attributes$linear = $terezka$elm_charts$Internal$Helpers$Attribute(
+	function (config) {
+		return _Utils_update(
+			config,
+			{
+				method: $elm$core$Maybe$Just($terezka$elm_charts$Internal$Svg$Linear)
+			});
+	});
+var $terezka$elm_charts$Internal$Property$NotStacked = function (a) {
+	return {$: 'NotStacked', a: a};
+};
+var $elm$core$Maybe$map = F2(
+	function (f, maybe) {
+		if (maybe.$ === 'Just') {
+			var value = maybe.a;
+			return $elm$core$Maybe$Just(
+				f(value));
+		} else {
+			return $elm$core$Maybe$Nothing;
+		}
+	});
+var $terezka$elm_charts$Internal$Property$notStacked = F3(
+	function (toY, interpolation, presentation) {
+		return $terezka$elm_charts$Internal$Property$NotStacked(
+			{
+				interpolation: interpolation,
+				presentation: presentation,
+				toY: toY,
+				toYSum: toY,
+				tooltipName: $elm$core$Maybe$Nothing,
+				tooltipText: function (datum) {
+					return A2(
+						$elm$core$Maybe$withDefault,
+						'N/A',
+						A2(
+							$elm$core$Maybe$map,
+							$elm$core$String$fromFloat,
+							toY(datum)));
+				},
+				variation: F2(
+					function (_v0, _v1) {
+						return _List_Nil;
+					})
+			});
+	});
+var $terezka$elm_charts$Chart$interpolated = F2(
+	function (y, inter) {
+		return A2(
+			$terezka$elm_charts$Internal$Property$notStacked,
+			A2($elm$core$Basics$composeR, y, $elm$core$Maybe$Just),
+			_Utils_ap(
+				_List_fromArray(
+					[$terezka$elm_charts$Chart$Attributes$linear]),
+				inter));
+	});
 var $terezka$elm_charts$Internal$Svg$Ints = {$: 'Ints'};
 var $terezka$elm_charts$Chart$Attributes$ints = $terezka$elm_charts$Internal$Helpers$Attribute(
 	function (config) {
@@ -8025,6 +9516,7 @@ var $terezka$elm_charts$Chart$label = F3(
 				return A4($terezka$elm_charts$Chart$Svg$label, p, attrs, inner, point);
 			});
 	});
+var $elm$html$Html$label = _VirtualDom_node('label');
 var $terezka$elm_charts$Chart$labelAt = F4(
 	function (toX, toY, attrs, inner) {
 		return $terezka$elm_charts$Chart$SvgElement(
@@ -8040,12 +9532,6 @@ var $terezka$elm_charts$Chart$labelAt = F4(
 					});
 			});
 	});
-var $terezka$elm_charts$Chart$line = function (attrs) {
-	return $terezka$elm_charts$Chart$SvgElement(
-		function (p) {
-			return A2($terezka$elm_charts$Chart$Svg$line, p, attrs);
-		});
-};
 var $terezka$elm_charts$Internal$Events$map2 = F3(
 	function (f, _v0, _v1) {
 		var a = _v0.a;
@@ -8063,6 +9549,15 @@ var $terezka$elm_charts$Chart$Events$map2 = $terezka$elm_charts$Internal$Events$
 var $terezka$elm_charts$Chart$Attributes$middle = function (b) {
 	return b.min + ((b.max - b.min) / 2);
 };
+var $terezka$elm_charts$Internal$Svg$Monotone = {$: 'Monotone'};
+var $terezka$elm_charts$Chart$Attributes$monotone = $terezka$elm_charts$Internal$Helpers$Attribute(
+	function (config) {
+		return _Utils_update(
+			config,
+			{
+				method: $elm$core$Maybe$Just($terezka$elm_charts$Internal$Svg$Monotone)
+			});
+	});
 var $terezka$elm_charts$Chart$Attributes$moveDown = function (v) {
 	return $terezka$elm_charts$Internal$Helpers$Attribute(
 		function (config) {
@@ -8104,6 +9599,38 @@ var $elm$html$Html$Events$onClick = function (msg) {
 		'click',
 		$elm$json$Json$Decode$succeed(msg));
 };
+var $elm$html$Html$Events$alwaysStop = function (x) {
+	return _Utils_Tuple2(x, true);
+};
+var $elm$virtual_dom$VirtualDom$MayStopPropagation = function (a) {
+	return {$: 'MayStopPropagation', a: a};
+};
+var $elm$html$Html$Events$stopPropagationOn = F2(
+	function (event, decoder) {
+		return A2(
+			$elm$virtual_dom$VirtualDom$on,
+			event,
+			$elm$virtual_dom$VirtualDom$MayStopPropagation(decoder));
+	});
+var $elm$json$Json$Decode$at = F2(
+	function (fields, decoder) {
+		return A3($elm$core$List$foldr, $elm$json$Json$Decode$field, decoder, fields);
+	});
+var $elm$json$Json$Decode$string = _Json_decodeString;
+var $elm$html$Html$Events$targetValue = A2(
+	$elm$json$Json$Decode$at,
+	_List_fromArray(
+		['target', 'value']),
+	$elm$json$Json$Decode$string);
+var $elm$html$Html$Events$onInput = function (tagger) {
+	return A2(
+		$elm$html$Html$Events$stopPropagationOn,
+		'input',
+		A2(
+			$elm$json$Json$Decode$map,
+			$elm$html$Html$Events$alwaysStop,
+			A2($elm$json$Json$Decode$map, tagger, $elm$html$Html$Events$targetValue)));
+};
 var $terezka$elm_charts$Internal$Events$map = F2(
 	function (f, _v0) {
 		var a = _v0.a;
@@ -8142,6 +9669,137 @@ var $terezka$elm_charts$Chart$Events$onMouseMove = F2(
 			'mousemove',
 			A2($terezka$elm_charts$Chart$Events$map, onMsg, decoder));
 	});
+var $mpizenberg$elm_pointer_events$Html$Events$Extra$Wheel$defaultOptions = {preventDefault: true, stopPropagation: false};
+var $elm$virtual_dom$VirtualDom$Custom = function (a) {
+	return {$: 'Custom', a: a};
+};
+var $elm$html$Html$Events$custom = F2(
+	function (event, decoder) {
+		return A2(
+			$elm$virtual_dom$VirtualDom$on,
+			event,
+			$elm$virtual_dom$VirtualDom$Custom(decoder));
+	});
+var $mpizenberg$elm_pointer_events$Html$Events$Extra$Wheel$Event = F3(
+	function (mouseEvent, deltaY, deltaMode) {
+		return {deltaMode: deltaMode, deltaY: deltaY, mouseEvent: mouseEvent};
+	});
+var $mpizenberg$elm_pointer_events$Html$Events$Extra$Wheel$DeltaLine = {$: 'DeltaLine'};
+var $mpizenberg$elm_pointer_events$Html$Events$Extra$Wheel$DeltaPage = {$: 'DeltaPage'};
+var $mpizenberg$elm_pointer_events$Html$Events$Extra$Wheel$DeltaPixel = {$: 'DeltaPixel'};
+var $elm$json$Json$Decode$int = _Json_decodeInt;
+var $mpizenberg$elm_pointer_events$Html$Events$Extra$Wheel$deltaModeDecoder = function () {
+	var intToMode = function (_int) {
+		switch (_int) {
+			case 1:
+				return $mpizenberg$elm_pointer_events$Html$Events$Extra$Wheel$DeltaLine;
+			case 2:
+				return $mpizenberg$elm_pointer_events$Html$Events$Extra$Wheel$DeltaPage;
+			default:
+				return $mpizenberg$elm_pointer_events$Html$Events$Extra$Wheel$DeltaPixel;
+		}
+	};
+	return A2($elm$json$Json$Decode$map, intToMode, $elm$json$Json$Decode$int);
+}();
+var $mpizenberg$elm_pointer_events$Html$Events$Extra$Mouse$Event = F6(
+	function (keys, button, clientPos, offsetPos, pagePos, screenPos) {
+		return {button: button, clientPos: clientPos, keys: keys, offsetPos: offsetPos, pagePos: pagePos, screenPos: screenPos};
+	});
+var $mpizenberg$elm_pointer_events$Html$Events$Extra$Mouse$BackButton = {$: 'BackButton'};
+var $mpizenberg$elm_pointer_events$Html$Events$Extra$Mouse$ErrorButton = {$: 'ErrorButton'};
+var $mpizenberg$elm_pointer_events$Html$Events$Extra$Mouse$ForwardButton = {$: 'ForwardButton'};
+var $mpizenberg$elm_pointer_events$Html$Events$Extra$Mouse$MainButton = {$: 'MainButton'};
+var $mpizenberg$elm_pointer_events$Html$Events$Extra$Mouse$MiddleButton = {$: 'MiddleButton'};
+var $mpizenberg$elm_pointer_events$Html$Events$Extra$Mouse$SecondButton = {$: 'SecondButton'};
+var $mpizenberg$elm_pointer_events$Html$Events$Extra$Mouse$buttonFromId = function (id) {
+	switch (id) {
+		case 0:
+			return $mpizenberg$elm_pointer_events$Html$Events$Extra$Mouse$MainButton;
+		case 1:
+			return $mpizenberg$elm_pointer_events$Html$Events$Extra$Mouse$MiddleButton;
+		case 2:
+			return $mpizenberg$elm_pointer_events$Html$Events$Extra$Mouse$SecondButton;
+		case 3:
+			return $mpizenberg$elm_pointer_events$Html$Events$Extra$Mouse$BackButton;
+		case 4:
+			return $mpizenberg$elm_pointer_events$Html$Events$Extra$Mouse$ForwardButton;
+		default:
+			return $mpizenberg$elm_pointer_events$Html$Events$Extra$Mouse$ErrorButton;
+	}
+};
+var $mpizenberg$elm_pointer_events$Html$Events$Extra$Mouse$buttonDecoder = A2(
+	$elm$json$Json$Decode$map,
+	$mpizenberg$elm_pointer_events$Html$Events$Extra$Mouse$buttonFromId,
+	A2($elm$json$Json$Decode$field, 'button', $elm$json$Json$Decode$int));
+var $mpizenberg$elm_pointer_events$Internal$Decode$clientPos = A3(
+	$elm$json$Json$Decode$map2,
+	F2(
+		function (a, b) {
+			return _Utils_Tuple2(a, b);
+		}),
+	A2($elm$json$Json$Decode$field, 'clientX', $elm$json$Json$Decode$float),
+	A2($elm$json$Json$Decode$field, 'clientY', $elm$json$Json$Decode$float));
+var $mpizenberg$elm_pointer_events$Internal$Decode$Keys = F4(
+	function (alt, ctrl, meta, shift) {
+		return {alt: alt, ctrl: ctrl, meta: meta, shift: shift};
+	});
+var $elm$json$Json$Decode$bool = _Json_decodeBool;
+var $mpizenberg$elm_pointer_events$Internal$Decode$keys = A5(
+	$elm$json$Json$Decode$map4,
+	$mpizenberg$elm_pointer_events$Internal$Decode$Keys,
+	A2($elm$json$Json$Decode$field, 'altKey', $elm$json$Json$Decode$bool),
+	A2($elm$json$Json$Decode$field, 'ctrlKey', $elm$json$Json$Decode$bool),
+	A2($elm$json$Json$Decode$field, 'metaKey', $elm$json$Json$Decode$bool),
+	A2($elm$json$Json$Decode$field, 'shiftKey', $elm$json$Json$Decode$bool));
+var $elm$json$Json$Decode$map6 = _Json_map6;
+var $mpizenberg$elm_pointer_events$Internal$Decode$offsetPos = A3(
+	$elm$json$Json$Decode$map2,
+	F2(
+		function (a, b) {
+			return _Utils_Tuple2(a, b);
+		}),
+	A2($elm$json$Json$Decode$field, 'offsetX', $elm$json$Json$Decode$float),
+	A2($elm$json$Json$Decode$field, 'offsetY', $elm$json$Json$Decode$float));
+var $mpizenberg$elm_pointer_events$Internal$Decode$pagePos = A3(
+	$elm$json$Json$Decode$map2,
+	F2(
+		function (a, b) {
+			return _Utils_Tuple2(a, b);
+		}),
+	A2($elm$json$Json$Decode$field, 'pageX', $elm$json$Json$Decode$float),
+	A2($elm$json$Json$Decode$field, 'pageY', $elm$json$Json$Decode$float));
+var $mpizenberg$elm_pointer_events$Internal$Decode$screenPos = A3(
+	$elm$json$Json$Decode$map2,
+	F2(
+		function (a, b) {
+			return _Utils_Tuple2(a, b);
+		}),
+	A2($elm$json$Json$Decode$field, 'screenX', $elm$json$Json$Decode$float),
+	A2($elm$json$Json$Decode$field, 'screenY', $elm$json$Json$Decode$float));
+var $mpizenberg$elm_pointer_events$Html$Events$Extra$Mouse$eventDecoder = A7($elm$json$Json$Decode$map6, $mpizenberg$elm_pointer_events$Html$Events$Extra$Mouse$Event, $mpizenberg$elm_pointer_events$Internal$Decode$keys, $mpizenberg$elm_pointer_events$Html$Events$Extra$Mouse$buttonDecoder, $mpizenberg$elm_pointer_events$Internal$Decode$clientPos, $mpizenberg$elm_pointer_events$Internal$Decode$offsetPos, $mpizenberg$elm_pointer_events$Internal$Decode$pagePos, $mpizenberg$elm_pointer_events$Internal$Decode$screenPos);
+var $mpizenberg$elm_pointer_events$Html$Events$Extra$Wheel$eventDecoder = A4(
+	$elm$json$Json$Decode$map3,
+	$mpizenberg$elm_pointer_events$Html$Events$Extra$Wheel$Event,
+	$mpizenberg$elm_pointer_events$Html$Events$Extra$Mouse$eventDecoder,
+	A2($elm$json$Json$Decode$field, 'deltaY', $elm$json$Json$Decode$float),
+	A2($elm$json$Json$Decode$field, 'deltaMode', $mpizenberg$elm_pointer_events$Html$Events$Extra$Wheel$deltaModeDecoder));
+var $mpizenberg$elm_pointer_events$Html$Events$Extra$Wheel$onWithOptions = F2(
+	function (options, tag) {
+		return A2(
+			$elm$html$Html$Events$custom,
+			'wheel',
+			A2(
+				$elm$json$Json$Decode$map,
+				function (ev) {
+					return {
+						message: tag(ev),
+						preventDefault: options.preventDefault,
+						stopPropagation: options.stopPropagation
+					};
+				},
+				$mpizenberg$elm_pointer_events$Html$Events$Extra$Wheel$eventDecoder));
+	});
+var $mpizenberg$elm_pointer_events$Html$Events$Extra$Wheel$onWheel = $mpizenberg$elm_pointer_events$Html$Events$Extra$Wheel$onWithOptions($mpizenberg$elm_pointer_events$Html$Events$Extra$Wheel$defaultOptions);
 var $terezka$elm_charts$Chart$Attributes$opacity = function (v) {
 	return $terezka$elm_charts$Internal$Helpers$Attribute(
 		function (config) {
@@ -8170,43 +9828,6 @@ var $terezka$elm_charts$Chart$Attributes$rotate = function (v) {
 				{rotate: config.rotate + v});
 		});
 };
-var $terezka$elm_charts$Internal$Property$NotStacked = function (a) {
-	return {$: 'NotStacked', a: a};
-};
-var $elm$core$Maybe$map = F2(
-	function (f, maybe) {
-		if (maybe.$ === 'Just') {
-			var value = maybe.a;
-			return $elm$core$Maybe$Just(
-				f(value));
-		} else {
-			return $elm$core$Maybe$Nothing;
-		}
-	});
-var $terezka$elm_charts$Internal$Property$notStacked = F3(
-	function (toY, interpolation, presentation) {
-		return $terezka$elm_charts$Internal$Property$NotStacked(
-			{
-				interpolation: interpolation,
-				presentation: presentation,
-				toY: toY,
-				toYSum: toY,
-				tooltipName: $elm$core$Maybe$Nothing,
-				tooltipText: function (datum) {
-					return A2(
-						$elm$core$Maybe$withDefault,
-						'N/A',
-						A2(
-							$elm$core$Maybe$map,
-							$elm$core$String$fromFloat,
-							toY(datum)));
-				},
-				variation: F2(
-					function (_v0, _v1) {
-						return _List_Nil;
-					})
-			});
-	});
 var $terezka$elm_charts$Chart$scatter = function (y) {
 	return A2(
 		$terezka$elm_charts$Internal$Property$notStacked,
@@ -8314,117 +9935,6 @@ var $terezka$elm_charts$Internal$Helpers$moss = '#92b42c';
 var $terezka$elm_charts$Internal$Helpers$orange = '#FF8400';
 var $terezka$elm_charts$Internal$Helpers$purple = '#7b4dff';
 var $terezka$elm_charts$Internal$Helpers$red = '#F5325B';
-var $elm$core$Dict$RBEmpty_elm_builtin = {$: 'RBEmpty_elm_builtin'};
-var $elm$core$Dict$empty = $elm$core$Dict$RBEmpty_elm_builtin;
-var $elm$core$Dict$Black = {$: 'Black'};
-var $elm$core$Dict$RBNode_elm_builtin = F5(
-	function (a, b, c, d, e) {
-		return {$: 'RBNode_elm_builtin', a: a, b: b, c: c, d: d, e: e};
-	});
-var $elm$core$Dict$Red = {$: 'Red'};
-var $elm$core$Dict$balance = F5(
-	function (color, key, value, left, right) {
-		if ((right.$ === 'RBNode_elm_builtin') && (right.a.$ === 'Red')) {
-			var _v1 = right.a;
-			var rK = right.b;
-			var rV = right.c;
-			var rLeft = right.d;
-			var rRight = right.e;
-			if ((left.$ === 'RBNode_elm_builtin') && (left.a.$ === 'Red')) {
-				var _v3 = left.a;
-				var lK = left.b;
-				var lV = left.c;
-				var lLeft = left.d;
-				var lRight = left.e;
-				return A5(
-					$elm$core$Dict$RBNode_elm_builtin,
-					$elm$core$Dict$Red,
-					key,
-					value,
-					A5($elm$core$Dict$RBNode_elm_builtin, $elm$core$Dict$Black, lK, lV, lLeft, lRight),
-					A5($elm$core$Dict$RBNode_elm_builtin, $elm$core$Dict$Black, rK, rV, rLeft, rRight));
-			} else {
-				return A5(
-					$elm$core$Dict$RBNode_elm_builtin,
-					color,
-					rK,
-					rV,
-					A5($elm$core$Dict$RBNode_elm_builtin, $elm$core$Dict$Red, key, value, left, rLeft),
-					rRight);
-			}
-		} else {
-			if ((((left.$ === 'RBNode_elm_builtin') && (left.a.$ === 'Red')) && (left.d.$ === 'RBNode_elm_builtin')) && (left.d.a.$ === 'Red')) {
-				var _v5 = left.a;
-				var lK = left.b;
-				var lV = left.c;
-				var _v6 = left.d;
-				var _v7 = _v6.a;
-				var llK = _v6.b;
-				var llV = _v6.c;
-				var llLeft = _v6.d;
-				var llRight = _v6.e;
-				var lRight = left.e;
-				return A5(
-					$elm$core$Dict$RBNode_elm_builtin,
-					$elm$core$Dict$Red,
-					lK,
-					lV,
-					A5($elm$core$Dict$RBNode_elm_builtin, $elm$core$Dict$Black, llK, llV, llLeft, llRight),
-					A5($elm$core$Dict$RBNode_elm_builtin, $elm$core$Dict$Black, key, value, lRight, right));
-			} else {
-				return A5($elm$core$Dict$RBNode_elm_builtin, color, key, value, left, right);
-			}
-		}
-	});
-var $elm$core$Basics$compare = _Utils_compare;
-var $elm$core$Dict$insertHelp = F3(
-	function (key, value, dict) {
-		if (dict.$ === 'RBEmpty_elm_builtin') {
-			return A5($elm$core$Dict$RBNode_elm_builtin, $elm$core$Dict$Red, key, value, $elm$core$Dict$RBEmpty_elm_builtin, $elm$core$Dict$RBEmpty_elm_builtin);
-		} else {
-			var nColor = dict.a;
-			var nKey = dict.b;
-			var nValue = dict.c;
-			var nLeft = dict.d;
-			var nRight = dict.e;
-			var _v1 = A2($elm$core$Basics$compare, key, nKey);
-			switch (_v1.$) {
-				case 'LT':
-					return A5(
-						$elm$core$Dict$balance,
-						nColor,
-						nKey,
-						nValue,
-						A3($elm$core$Dict$insertHelp, key, value, nLeft),
-						nRight);
-				case 'EQ':
-					return A5($elm$core$Dict$RBNode_elm_builtin, nColor, nKey, value, nLeft, nRight);
-				default:
-					return A5(
-						$elm$core$Dict$balance,
-						nColor,
-						nKey,
-						nValue,
-						nLeft,
-						A3($elm$core$Dict$insertHelp, key, value, nRight));
-			}
-		}
-	});
-var $elm$core$Dict$insert = F3(
-	function (key, value, dict) {
-		var _v0 = A3($elm$core$Dict$insertHelp, key, value, dict);
-		if ((_v0.$ === 'RBNode_elm_builtin') && (_v0.a.$ === 'Red')) {
-			var _v1 = _v0.a;
-			var k = _v0.b;
-			var v = _v0.c;
-			var l = _v0.d;
-			var r = _v0.e;
-			return A5($elm$core$Dict$RBNode_elm_builtin, $elm$core$Dict$Black, k, v, l, r);
-		} else {
-			var x = _v0;
-			return x;
-		}
-	});
 var $elm$core$Dict$fromList = function (assocs) {
 	return A3(
 		$elm$core$List$foldl,
@@ -8437,37 +9947,6 @@ var $elm$core$Dict$fromList = function (assocs) {
 		$elm$core$Dict$empty,
 		assocs);
 };
-var $elm$core$Dict$get = F2(
-	function (targetKey, dict) {
-		get:
-		while (true) {
-			if (dict.$ === 'RBEmpty_elm_builtin') {
-				return $elm$core$Maybe$Nothing;
-			} else {
-				var key = dict.b;
-				var value = dict.c;
-				var left = dict.d;
-				var right = dict.e;
-				var _v1 = A2($elm$core$Basics$compare, targetKey, key);
-				switch (_v1.$) {
-					case 'LT':
-						var $temp$targetKey = targetKey,
-							$temp$dict = left;
-						targetKey = $temp$targetKey;
-						dict = $temp$dict;
-						continue get;
-					case 'EQ':
-						return $elm$core$Maybe$Just(value);
-					default:
-						var $temp$targetKey = targetKey,
-							$temp$dict = right;
-						targetKey = $temp$targetKey;
-						dict = $temp$dict;
-						continue get;
-				}
-			}
-		}
-	});
 var $elm$core$Tuple$pair = F2(
 	function (a, b) {
 		return _Utils_Tuple2(a, b);
@@ -8803,36 +10282,6 @@ var $terezka$elm_charts$Internal$Interpolation$stepped = function (sections) {
 					return A2($terezka$elm_charts$Internal$Commands$Line, x, y);
 				})),
 		sections);
-};
-var $elm$core$List$drop = F2(
-	function (n, list) {
-		drop:
-		while (true) {
-			if (n <= 0) {
-				return list;
-			} else {
-				if (!list.b) {
-					return list;
-				} else {
-					var x = list.a;
-					var xs = list.b;
-					var $temp$n = n - 1,
-						$temp$list = xs;
-					n = $temp$n;
-					list = $temp$list;
-					continue drop;
-				}
-			}
-		}
-	});
-var $elm$core$List$head = function (list) {
-	if (list.b) {
-		var x = list.a;
-		var xs = list.b;
-		return $elm$core$Maybe$Just(x);
-	} else {
-		return $elm$core$Maybe$Nothing;
-	}
 };
 var $terezka$elm_charts$Internal$Svg$last = function (list) {
 	return $elm$core$List$head(
@@ -9637,6 +11086,8 @@ var $terezka$elm_charts$Chart$series = F3(
 		return A4($terezka$elm_charts$Chart$seriesMap, $elm$core$Basics$identity, toX, properties, data);
 	});
 var $elm$html$Html$span = _VirtualDom_node('span');
+var $elm$html$Html$Attributes$type_ = $elm$html$Html$Attributes$stringProperty('type');
+var $elm$html$Html$Attributes$value = $elm$html$Html$Attributes$stringProperty('value');
 var $terezka$elm_charts$Internal$Property$Stacked = function (a) {
 	return {$: 'Stacked', a: a};
 };
@@ -9677,22 +11128,10 @@ var $terezka$elm_charts$Chart$Attributes$withGrid = $terezka$elm_charts$Internal
 			config,
 			{grid: true});
 	});
-var $terezka$elm_charts$Chart$withPlane = function (func) {
-	return $terezka$elm_charts$Chart$SubElements(
-		F2(
-			function (p, is) {
-				return func(p);
-			}));
-};
 var $terezka$elm_charts$Internal$Svg$Floats = {$: 'Floats'};
 var $terezka$elm_charts$Chart$LabelsElement = F3(
 	function (a, b, c) {
 		return {$: 'LabelsElement', a: a, b: b, c: c};
-	});
-var $elm$core$Basics$composeL = F3(
-	function (g, f, x) {
-		return g(
-			f(x));
 	});
 var $terezka$elm_charts$Internal$Svg$Generator = function (a) {
 	return {$: 'Generator', a: a};
@@ -9713,7 +11152,6 @@ var $terezka$intervals$Intervals$getBeginning = F2(
 			multiple,
 			$elm$core$Basics$round(multiple)) ? min : A2($terezka$intervals$Intervals$ceilingTo, interval, min);
 	});
-var $elm$core$Basics$ge = _Utils_ge;
 var $elm$core$String$foldr = _String_foldr;
 var $elm$core$String$toList = function (string) {
 	return A3($elm$core$String$foldr, $elm$core$List$cons, _List_Nil, string);
@@ -9734,7 +11172,6 @@ var $myrho$elm_round$Round$addSign = F2(
 			(signed && isNotZero) ? '-' : '',
 			str);
 	});
-var $elm$core$String$cons = _String_cons;
 var $elm$core$Char$fromCode = _Char_fromCode;
 var $myrho$elm_round$Round$increaseNum = function (_v0) {
 	var head = _v0.a;
@@ -9761,9 +11198,6 @@ var $myrho$elm_round$Round$increaseNum = function (_v0) {
 	}
 };
 var $elm$core$Basics$isInfinite = _Basics_isInfinite;
-var $elm$core$String$fromChar = function (_char) {
-	return A2($elm$core$String$cons, _char, '');
-};
 var $elm$core$Bitwise$and = _Bitwise_and;
 var $elm$core$Bitwise$shiftRightBy = _Bitwise_shiftRightBy;
 var $elm$core$String$repeatHelp = F3(
@@ -9947,7 +11381,6 @@ var $myrho$elm_round$Round$round = $myrho$elm_round$Round$roundFun(
 				}
 			}
 		}));
-var $elm$core$String$toFloat = _String_toFloat;
 var $terezka$intervals$Intervals$correctFloat = function (prec) {
 	return A2(
 		$elm$core$Basics$composeR,
@@ -10669,10 +12102,6 @@ var $elm$time$Time$toSecond = F2(
 				1000));
 	});
 var $elm$core$String$toUpper = _String_toUpper;
-var $elm$time$Time$Posix = function (a) {
-	return {$: 'Posix', a: a};
-};
-var $elm$time$Time$millisToPosix = $elm$time$Time$Posix;
 var $ryan_haskell$date_format$DateFormat$millisecondsPerYear = $elm$core$Basics$round((((1000 * 60) * 60) * 24) * 365.25);
 var $ryan_haskell$date_format$DateFormat$firstDayOfYear = F2(
 	function (zone, time) {
@@ -12527,265 +13956,348 @@ var $terezka$elm_charts$Chart$Attributes$zoom = function (per) {
 var $author$project$Zoom$view = function (model) {
 	return A2(
 		$elm$html$Html$div,
-		_List_fromArray(
-			[
-				A2($elm$html$Html$Attributes$style, 'position', 'absolute'),
-				A2($elm$html$Html$Attributes$style, 'top', '50%'),
-				A2($elm$html$Html$Attributes$style, 'left', '50%'),
-				A2($elm$html$Html$Attributes$style, 'width', '700px'),
-				A2($elm$html$Html$Attributes$style, 'height', '700px'),
-				A2($elm$html$Html$Attributes$style, 'transform', 'translate(-50%, -50%)')
-			]),
+		_List_Nil,
 		_List_fromArray(
 			[
 				A2(
-				$terezka$elm_charts$Chart$chart,
+				$elm$html$Html$div,
 				_List_fromArray(
 					[
-						$terezka$elm_charts$Chart$Attributes$height(300),
-						$terezka$elm_charts$Chart$Attributes$width(300),
-						$terezka$elm_charts$Chart$Attributes$range(
-						_List_fromArray(
-							[
-								A2($terezka$elm_charts$Chart$Attributes$highest, 300, $terezka$elm_charts$Chart$Attributes$orHigher),
-								$terezka$elm_charts$Chart$Attributes$zoom(model.percentage),
-								$terezka$elm_charts$Chart$Attributes$centerAt(model.center.x)
-							])),
-						$terezka$elm_charts$Chart$Attributes$domain(
-						_List_fromArray(
-							[
-								A2($terezka$elm_charts$Chart$Attributes$highest, 300, $terezka$elm_charts$Chart$Attributes$orHigher),
-								$terezka$elm_charts$Chart$Attributes$zoom(model.percentage),
-								$terezka$elm_charts$Chart$Attributes$centerAt(model.center.y)
-							])),
-						A2($terezka$elm_charts$Chart$Events$onMouseDown, $author$project$Zoom$OnMouseDown, $terezka$elm_charts$Chart$Events$getOffset),
-						A2($terezka$elm_charts$Chart$Events$onMouseMove, $author$project$Zoom$OnMouseMove, $terezka$elm_charts$Chart$Events$getOffset),
-						A2(
-						$terezka$elm_charts$Chart$Events$on,
-						'mouseup',
-						A3($terezka$elm_charts$Chart$Events$map2, $author$project$Zoom$OnMouseUp, $terezka$elm_charts$Chart$Events$getOffset, $terezka$elm_charts$Chart$Events$getCoords)),
-						$terezka$elm_charts$Chart$Events$onMouseLeave($author$project$Zoom$OnMouseLeave),
-						$terezka$elm_charts$Chart$Attributes$htmlAttrs(
-						_List_fromArray(
-							[
-								A2($elm$html$Html$Attributes$style, 'user-select', 'none'),
-								A2(
-								$elm$html$Html$Attributes$style,
-								'cursor',
-								function () {
-									var _v0 = model.dragging;
-									switch (_v0.$) {
-										case 'CouldStillBeClick':
-											return 'grabbing';
-										case 'ForSureDragging':
-											return 'grabbing';
-										default:
-											return 'grab';
-									}
-								}())
-							]))
+						A2($elm$html$Html$Attributes$style, 'position', 'absolute')
 					]),
 				_List_fromArray(
 					[
-						$terezka$elm_charts$Chart$xLabels(
-						_List_fromArray(
-							[
-								$terezka$elm_charts$Chart$Attributes$withGrid,
-								$terezka$elm_charts$Chart$Attributes$amount(5),
-								$terezka$elm_charts$Chart$Attributes$ints,
-								$terezka$elm_charts$Chart$Attributes$fontSize(9)
-							])),
-						$terezka$elm_charts$Chart$yLabels(
-						_List_fromArray(
-							[
-								$terezka$elm_charts$Chart$Attributes$withGrid,
-								$terezka$elm_charts$Chart$Attributes$amount(5),
-								$terezka$elm_charts$Chart$Attributes$ints,
-								$terezka$elm_charts$Chart$Attributes$fontSize(9)
-							])),
-						$terezka$elm_charts$Chart$xTicks(
-						_List_fromArray(
-							[
-								$terezka$elm_charts$Chart$Attributes$amount(10),
-								$terezka$elm_charts$Chart$Attributes$ints
-							])),
-						$terezka$elm_charts$Chart$yTicks(
-						_List_fromArray(
-							[
-								$terezka$elm_charts$Chart$Attributes$amount(10),
-								$terezka$elm_charts$Chart$Attributes$ints
-							])),
-						A4(
-						$terezka$elm_charts$Chart$labelAt,
-						$terezka$elm_charts$Chart$Attributes$middle,
-						function ($) {
-							return $.min;
-						},
-						_List_fromArray(
-							[
-								$terezka$elm_charts$Chart$Attributes$moveDown(18)
-							]),
-						_List_fromArray(
-							[
-								$elm$svg$Svg$text('Process Size in nanometers')
-							])),
-						A4(
-						$terezka$elm_charts$Chart$labelAt,
-						function ($) {
-							return $.min;
-						},
-						$terezka$elm_charts$Chart$Attributes$middle,
-						_List_fromArray(
-							[
-								$terezka$elm_charts$Chart$Attributes$moveLeft(18),
-								$terezka$elm_charts$Chart$Attributes$rotate(90)
-							]),
-						_List_fromArray(
-							[
-								$elm$svg$Svg$text('Thermal Design Power in Watts')
-							])),
-						A3(
-						$terezka$elm_charts$Chart$series,
-						function ($) {
-							return $.x;
-						},
+						A2(
+						$elm$html$Html$div,
+						_List_Nil,
 						_List_fromArray(
 							[
 								A2(
-								$terezka$elm_charts$Chart$variation,
-								F2(
-									function (_v1, d) {
-										return _List_fromArray(
+								$elm$html$Html$label,
+								_List_Nil,
+								_List_fromArray(
+									[
+										A2(
+										$elm$html$Html$input,
+										_List_fromArray(
 											[
-												$terezka$elm_charts$Chart$Attributes$size(((d.s * model.percentage) / 100) / 10),
-												$terezka$elm_charts$Chart$Attributes$hideOverflow
-											]);
-									}),
+												$elm$html$Html$Attributes$type_('checkbox'),
+												$elm$html$Html$Attributes$checked(model.showSize),
+												$elm$html$Html$Events$onClick($author$project$Zoom$ToggleShowSize)
+											]),
+										_List_Nil),
+										$elm$html$Html$text(' Show size')
+									])),
 								A2(
-									$terezka$elm_charts$Chart$scatter,
-									function ($) {
-										return $.y;
-									},
-									_List_fromArray(
-										[
-											$terezka$elm_charts$Chart$Attributes$opacity(0.2),
-											$terezka$elm_charts$Chart$Attributes$borderWidth(1)
-										])))
+								$elm$html$Html$label,
+								_List_Nil,
+								_List_fromArray(
+									[
+										A2(
+										$elm$html$Html$input,
+										_List_fromArray(
+											[
+												$elm$html$Html$Attributes$type_('checkbox'),
+												$elm$html$Html$Attributes$checked(model.showText),
+												$elm$html$Html$Events$onClick($author$project$Zoom$ToggleShowText)
+											]),
+										_List_Nil),
+										$elm$html$Html$text(' Show text')
+									]))
+							])),
+						A2(
+						$elm$html$Html$div,
+						_List_Nil,
+						_List_fromArray(
+							[
+								A2(
+								$elm$html$Html$input,
+								_List_fromArray(
+									[
+										$elm$html$Html$Attributes$value(model.textX),
+										$elm$html$Html$Events$onInput($author$project$Zoom$UpdateTextX)
+									]),
+								_List_Nil),
+								A2(
+								$elm$html$Html$input,
+								_List_fromArray(
+									[
+										$elm$html$Html$Attributes$value(model.textY),
+										$elm$html$Html$Events$onInput($author$project$Zoom$UpdateTextY)
+									]),
+								_List_Nil)
+							]))
+					])),
+				A2(
+				$elm$html$Html$div,
+				_List_fromArray(
+					[
+						A2($elm$html$Html$Attributes$style, 'width', '100vw'),
+						A2($elm$html$Html$Attributes$style, 'height', '100vh'),
+						A2($elm$html$Html$Attributes$style, 'overflow', 'hidden'),
+						$mpizenberg$elm_pointer_events$Html$Events$Extra$Wheel$onWheel($author$project$Zoom$chooseZoom)
+					]),
+				_List_Nil),
+				A2(
+				$elm$html$Html$div,
+				_List_fromArray(
+					[
+						A2($elm$html$Html$Attributes$style, 'position', 'absolute'),
+						A2($elm$html$Html$Attributes$style, 'top', 'calc(50vh - 40vh)'),
+						A2($elm$html$Html$Attributes$style, 'left', 'calc(50vw - 40vh)'),
+						A2($elm$html$Html$Attributes$style, 'width', '80vh'),
+						A2($elm$html$Html$Attributes$style, 'height', '80vh')
+					]),
+				_List_fromArray(
+					[
+						A2(
+						$terezka$elm_charts$Chart$chart,
+						_List_fromArray(
+							[
+								$terezka$elm_charts$Chart$Attributes$height(300),
+								$terezka$elm_charts$Chart$Attributes$width(300),
+								$terezka$elm_charts$Chart$Attributes$range(
+								_List_fromArray(
+									[
+										A2($terezka$elm_charts$Chart$Attributes$highest, 300, $terezka$elm_charts$Chart$Attributes$orHigher),
+										$terezka$elm_charts$Chart$Attributes$zoom(model.percentage),
+										$terezka$elm_charts$Chart$Attributes$centerAt(model.center.x)
+									])),
+								$terezka$elm_charts$Chart$Attributes$domain(
+								_List_fromArray(
+									[
+										A2($terezka$elm_charts$Chart$Attributes$highest, 300, $terezka$elm_charts$Chart$Attributes$orHigher),
+										$terezka$elm_charts$Chart$Attributes$zoom(model.percentage),
+										$terezka$elm_charts$Chart$Attributes$centerAt(model.center.y)
+									])),
+								A2($terezka$elm_charts$Chart$Events$onMouseDown, $author$project$Zoom$OnMouseDown, $terezka$elm_charts$Chart$Events$getOffset),
+								A2($terezka$elm_charts$Chart$Events$onMouseMove, $author$project$Zoom$OnMouseMove, $terezka$elm_charts$Chart$Events$getOffset),
+								A2(
+								$terezka$elm_charts$Chart$Events$on,
+								'mouseup',
+								A3($terezka$elm_charts$Chart$Events$map2, $author$project$Zoom$OnMouseUp, $terezka$elm_charts$Chart$Events$getOffset, $terezka$elm_charts$Chart$Events$getCoords)),
+								$terezka$elm_charts$Chart$Events$onMouseLeave($author$project$Zoom$OnMouseLeave),
+								$terezka$elm_charts$Chart$Attributes$htmlAttrs(
+								_List_fromArray(
+									[
+										A2($elm$html$Html$Attributes$style, 'user-select', 'none'),
+										A2(
+										$elm$html$Html$Attributes$style,
+										'cursor',
+										function () {
+											var _v0 = model.dragging;
+											switch (_v0.$) {
+												case 'CouldStillBeClick':
+													return 'grabbing';
+												case 'ForSureDragging':
+													return 'grabbing';
+												default:
+													return 'grab';
+											}
+										}())
+									]))
 							]),
 						_List_fromArray(
 							[
-								{s: 77, w: 'AMD Athlon 64 3500+', x: 65, y: 45},
-								{s: 192, w: 'AMD Athlon 200GE', x: 14, y: 35},
-								{s: 160, w: 'Intel Xeon E5-2603 v2', x: 22, y: 80},
-								{s: 258, w: 'AMD Phenom II X4 980 BE', x: 45, y: 125},
-								{s: 160, w: '\tIntel Xeon E5-2470 v2', x: 22, y: 95}
-							])),
-						$terezka$elm_charts$Chart$eachDot(
-						F2(
-							function (p, dot) {
-								return _List_fromArray(
+								$terezka$elm_charts$Chart$xLabels(
+								_List_fromArray(
+									[
+										$terezka$elm_charts$Chart$Attributes$withGrid,
+										$terezka$elm_charts$Chart$Attributes$amount(5),
+										$terezka$elm_charts$Chart$Attributes$ints,
+										$terezka$elm_charts$Chart$Attributes$fontSize(9)
+									])),
+								$terezka$elm_charts$Chart$yLabels(
+								_List_fromArray(
+									[
+										$terezka$elm_charts$Chart$Attributes$withGrid,
+										$terezka$elm_charts$Chart$Attributes$amount(5),
+										$terezka$elm_charts$Chart$Attributes$ints,
+										$terezka$elm_charts$Chart$Attributes$fontSize(9)
+									])),
+								$terezka$elm_charts$Chart$xTicks(
+								_List_fromArray(
+									[
+										$terezka$elm_charts$Chart$Attributes$amount(10),
+										$terezka$elm_charts$Chart$Attributes$ints
+									])),
+								$terezka$elm_charts$Chart$yTicks(
+								_List_fromArray(
+									[
+										$terezka$elm_charts$Chart$Attributes$amount(10),
+										$terezka$elm_charts$Chart$Attributes$ints
+									])),
+								A4(
+								$terezka$elm_charts$Chart$labelAt,
+								$terezka$elm_charts$Chart$Attributes$middle,
+								function ($) {
+									return $.min;
+								},
+								_List_fromArray(
+									[
+										$terezka$elm_charts$Chart$Attributes$moveDown(18)
+									]),
+								_List_fromArray(
+									[
+										$elm$svg$Svg$text(model.textX)
+									])),
+								A4(
+								$terezka$elm_charts$Chart$labelAt,
+								function ($) {
+									return $.min;
+								},
+								$terezka$elm_charts$Chart$Attributes$middle,
+								_List_fromArray(
+									[
+										$terezka$elm_charts$Chart$Attributes$moveLeft(18),
+										$terezka$elm_charts$Chart$Attributes$rotate(90)
+									]),
+								_List_fromArray(
+									[
+										$elm$svg$Svg$text(model.textY)
+									])),
+								A3(
+								$terezka$elm_charts$Chart$series,
+								function ($) {
+									return $.x;
+								},
+								_List_fromArray(
+									[
+										A2(
+										$terezka$elm_charts$Chart$variation,
+										F2(
+											function (_v1, d) {
+												return _List_fromArray(
+													[
+														$terezka$elm_charts$Chart$Attributes$size(
+														model.showSize ? (((d.s * model.percentage) / 100) / 10) : 1),
+														$terezka$elm_charts$Chart$Attributes$hideOverflow
+													]);
+											}),
+										A2(
+											$terezka$elm_charts$Chart$scatter,
+											function ($) {
+												return $.y;
+											},
+											_List_fromArray(
+												[
+													$terezka$elm_charts$Chart$Attributes$opacity(0.2),
+													$terezka$elm_charts$Chart$Attributes$borderWidth(1)
+												])))
+									]),
+								model.data),
+								A3(
+								$terezka$elm_charts$Chart$series,
+								function ($) {
+									return $.x;
+								},
+								_List_fromArray(
 									[
 										A3(
-										$terezka$elm_charts$Chart$label,
+										$terezka$elm_charts$Chart$interpolated,
+										function ($) {
+											return $.y;
+										},
+										_List_fromArray(
+											[$terezka$elm_charts$Chart$Attributes$monotone]),
+										_List_Nil)
+									]),
+								$author$project$Zoom$getPareto(model.data)),
+								model.showText ? $terezka$elm_charts$Chart$eachDot(
+								F2(
+									function (p, dot) {
+										return _List_fromArray(
+											[
+												A3(
+												$terezka$elm_charts$Chart$label,
+												_List_fromArray(
+													[
+														$terezka$elm_charts$Chart$Attributes$moveDown(4),
+														$terezka$elm_charts$Chart$Attributes$color(
+														$terezka$elm_charts$Chart$Item$getColor(dot)),
+														$terezka$elm_charts$Chart$Attributes$fontSize(5)
+													]),
+												_List_fromArray(
+													[
+														$elm$svg$Svg$text(
+														$terezka$elm_charts$Chart$Item$getData(dot).w)
+													]),
+												A2($terezka$elm_charts$Chart$Item$getCenter, p, dot))
+											]);
+									})) : $terezka$elm_charts$Chart$eachDot(
+								F2(
+									function (_v2, _v3) {
+										return _List_Nil;
+									})),
+								A6(
+								$terezka$elm_charts$Chart$htmlAt,
+								function ($) {
+									return $.max;
+								},
+								function ($) {
+									return $.max;
+								},
+								0,
+								0,
+								_List_fromArray(
+									[
+										A2($elm$html$Html$Attributes$style, 'transform', 'translateX(-100%)')
+									]),
+								_List_fromArray(
+									[
+										A2(
+										$elm$html$Html$span,
 										_List_fromArray(
 											[
-												$terezka$elm_charts$Chart$Attributes$moveDown(4),
-												$terezka$elm_charts$Chart$Attributes$color(
-												$terezka$elm_charts$Chart$Item$getColor(dot)),
-												$terezka$elm_charts$Chart$Attributes$fontSize(5)
+												A2($elm$html$Html$Attributes$style, 'margin-right', '5px')
 											]),
 										_List_fromArray(
 											[
-												$elm$svg$Svg$text(
-												$terezka$elm_charts$Chart$Item$getData(dot).w)
+												$elm$html$Html$text(
+												$elm$core$String$fromFloat(model.percentage) + '%')
+											])),
+										A2(
+										$elm$html$Html$button,
+										_List_fromArray(
+											[
+												$elm$html$Html$Events$onClick($author$project$Zoom$OnZoomIn),
+												A2($elm$html$Html$Attributes$style, 'margin-right', '5px')
 											]),
-										A2($terezka$elm_charts$Chart$Item$getCenter, p, dot))
-									]);
-							})),
-						$terezka$elm_charts$Chart$withPlane(
-						function (p) {
-							return _List_fromArray(
-								[
-									$terezka$elm_charts$Chart$line(
-									_List_fromArray(
-										[
-											$terezka$elm_charts$Chart$Attributes$color($terezka$elm_charts$Chart$Attributes$darkGray),
-											$terezka$elm_charts$Chart$Attributes$dashed(
-											_List_fromArray(
-												[6, 6])),
-											$terezka$elm_charts$Chart$Attributes$y1(
-											$terezka$elm_charts$Chart$Attributes$middle(p.y))
-										])),
-									$terezka$elm_charts$Chart$line(
-									_List_fromArray(
-										[
-											$terezka$elm_charts$Chart$Attributes$color($terezka$elm_charts$Chart$Attributes$darkGray),
-											$terezka$elm_charts$Chart$Attributes$dashed(
-											_List_fromArray(
-												[6, 6])),
-											$terezka$elm_charts$Chart$Attributes$x1(
-											$terezka$elm_charts$Chart$Attributes$middle(p.x))
-										]))
-								]);
-						}),
-						A6(
-						$terezka$elm_charts$Chart$htmlAt,
-						function ($) {
-							return $.max;
-						},
-						function ($) {
-							return $.max;
-						},
-						0,
-						0,
-						_List_fromArray(
-							[
-								A2($elm$html$Html$Attributes$style, 'transform', 'translateX(-100%)')
-							]),
-						_List_fromArray(
-							[
-								A2(
-								$elm$html$Html$span,
-								_List_fromArray(
-									[
-										A2($elm$html$Html$Attributes$style, 'margin-right', '5px')
-									]),
-								_List_fromArray(
-									[
-										$elm$html$Html$text(
-										$elm$core$String$fromFloat(model.percentage) + '%')
-									])),
-								A2(
-								$elm$html$Html$button,
-								_List_fromArray(
-									[
-										$elm$html$Html$Events$onClick($author$project$Zoom$OnZoomIn),
-										A2($elm$html$Html$Attributes$style, 'margin-right', '5px')
-									]),
-								_List_fromArray(
-									[
-										$elm$html$Html$text('+')
-									])),
-								A2(
-								$elm$html$Html$button,
-								_List_fromArray(
-									[
-										$elm$html$Html$Events$onClick($author$project$Zoom$OnZoomOut),
-										A2($elm$html$Html$Attributes$style, 'margin-right', '5px')
-									]),
-								_List_fromArray(
-									[
-										$elm$html$Html$text('-')
-									])),
-								A2(
-								$elm$html$Html$button,
-								_List_fromArray(
-									[
-										$elm$html$Html$Events$onClick($author$project$Zoom$OnZoomReset)
-									]),
-								_List_fromArray(
-									[
-										$elm$html$Html$text('⨯')
+										_List_fromArray(
+											[
+												$elm$html$Html$text('+')
+											])),
+										A2(
+										$elm$html$Html$button,
+										_List_fromArray(
+											[
+												$elm$html$Html$Events$onClick($author$project$Zoom$OnZoomOut),
+												A2($elm$html$Html$Attributes$style, 'margin-right', '5px')
+											]),
+										_List_fromArray(
+											[
+												$elm$html$Html$text('-')
+											])),
+										A2(
+										$elm$html$Html$button,
+										_List_fromArray(
+											[
+												$elm$html$Html$Events$onClick($author$project$Zoom$OnZoomReset)
+											]),
+										_List_fromArray(
+											[
+												$elm$html$Html$text('Reset')
+											])),
+										A2(
+										$elm$html$Html$button,
+										_List_fromArray(
+											[
+												$elm$html$Html$Events$onClick($author$project$Zoom$FileRequested)
+											]),
+										_List_fromArray(
+											[
+												$elm$html$Html$text('Load CSV')
+											]))
 									]))
 							]))
 					]))
