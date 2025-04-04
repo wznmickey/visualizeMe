@@ -76,7 +76,7 @@ Hard to filter the desired parameters.
 ][#grid(columns: 1, align: center)[#image("tempResult.png") ][
     Current Appearance]]
 
-== Live Example
+== Live Demo
 
 https://wznmickey.github.io/visualizeMe/
 
