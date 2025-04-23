@@ -1,7 +1,7 @@
 module Main exposing (..)
 
 import Browser
-import Zoom exposing (..)
+import View exposing (..)
 
 
 main =

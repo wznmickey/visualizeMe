@@ -1,4 +1,4 @@
-module Zoom exposing (..)
+module View exposing (..)
 
 import Chart as C
 import Chart.Attributes as CA
@@ -8,10 +8,11 @@ import Chart.Svg as CS
 import Csv.Decode as Decode exposing (Decoder, column, float, into, pipeline, string)
 import File exposing (File)
 import File.Select as Select
-import Html as H exposing (Html, div)
-import Html.Attributes as HA exposing (style)
-import Html.Events as HE
+import Html as H exposing (Html, button, div, input, text)
+import Html.Attributes as HA exposing (placeholder, style, value)
+import Html.Events as HE exposing (onClick, onInput)
 import Html.Events.Extra.Wheel as Wheel
+import Http
 import Svg as S
 import Svg.Attributes as SA
 import Task
@@ -96,6 +97,7 @@ type alias Model =
     , showPareto : Bool
     , textX : String
     , textY : String
+    , url : String
     }
 
 
@@ -122,6 +124,7 @@ init _ =
       , showPareto = False
       , textX = "Process Size in nanometers"
       , textY = "Thermal Design Power in Watts"
+      , url = ""
       }
     , Cmd.none
     )
@@ -144,11 +147,40 @@ type Msg
     | OnWheelEvent Float
     | UpdateTextX String
     | UpdateTextY String
+    | UpdateUrl String
+    | LoadUrl
+    | GotResponse (Result Http.Error String)
+
+
+loadRemoteFile : String -> Cmd Msg
+loadRemoteFile url =
+    Http.get
+        { url = url
+        , expect = Http.expectString GotResponse
+        }
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        UpdateUrl newUrl ->
+            ( { model | url = newUrl }, Cmd.none )
+
+        LoadUrl ->
+            if String.isEmpty model.url then
+                ( model, Task.perform (\_ -> FileRequested) (Task.succeed ()) )
+
+            else
+                ( model, loadRemoteFile model.url )
+
+        GotResponse result ->
+            case result of
+                Ok body ->
+                    ( model, Task.perform FileLoad (Task.succeed body) )
+
+                Err error ->
+                    ( {model | url = Debug.toString error}, Cmd.none )
+
         OnMouseDown offset ->
             ( { model | dragging = CouldStillBeClick offset }, Cmd.none )
 
@@ -281,7 +313,16 @@ view model =
                     [ H.input [ HA.type_ "checkbox", HA.checked model.showPareto, HE.onClick ToggleShowPareto ] []
                     , H.text " Show pareto line"
                     ]
+
+                    , H.input
+            [ placeholder "Input URL"
+            , value model.url
+            , onInput UpdateUrl
+            ]
+            []
+        , H.button [ onClick LoadUrl ] [ text "Load" ]
                 ]
+                
             , div []
                 [ H.input
                     [ HA.value model.textX
@@ -414,7 +455,7 @@ view model =
                     , H.button
                         [ HE.onClick OnZoomReset ]
                         [ H.text "Reset" ]
-                    , H.button [ HE.onClick FileRequested ] [ H.text "Load CSV" ]
+                    
                     ]
                 ]
             ]
